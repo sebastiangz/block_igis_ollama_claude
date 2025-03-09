@@ -43,7 +43,8 @@ class block_igis_ollama_claude_external extends external_api {
             'instanceid' => new external_value(PARAM_INT, 'Block instance ID'),
             'contextid' => new external_value(PARAM_INT, 'Context ID'),
             'sourceoftruth' => new external_value(PARAM_RAW, 'Source of truth', VALUE_DEFAULT, ''),
-            'prompt' => new external_value(PARAM_RAW, 'System prompt', VALUE_DEFAULT, '')
+            'prompt' => new external_value(PARAM_RAW, 'System prompt', VALUE_DEFAULT, ''),
+            'api' => new external_value(PARAM_ALPHA, 'API service to use (ollama or claude)', VALUE_DEFAULT, '')
         ]);
     }
 
@@ -56,9 +57,10 @@ class block_igis_ollama_claude_external extends external_api {
      * @param int $contextid Context ID
      * @param string $sourceoftruth Source of truth
      * @param string $prompt System prompt
+     * @param string $api API service to use (ollama or claude)
      * @return array Response data
      */
-    public static function get_chat_response($message, $conversation, $instanceid, $contextid, $sourceoftruth, $prompt) {
+    public static function get_chat_response($message, $conversation, $instanceid, $contextid, $sourceoftruth, $prompt, $api) {
         global $DB, $USER, $COURSE;
 
         // Parameter validation
@@ -68,7 +70,8 @@ class block_igis_ollama_claude_external extends external_api {
             'instanceid' => $instanceid,
             'contextid' => $contextid,
             'sourceoftruth' => $sourceoftruth,
-            'prompt' => $prompt
+            'prompt' => $prompt,
+            'api' => $api
         ]);
         
         // Get context
@@ -86,27 +89,31 @@ class block_igis_ollama_claude_external extends external_api {
         $block = $DB->get_record('block_instances', ['id' => $instanceid], '*', MUST_EXIST);
         $config = unserialize(base64_decode($block->configdata));
         
-        // Get Ollama API URL and model from global settings or specific instance settings
-        $apiurl = get_config('block_igis_ollama_claude', 'apiurl');
-        $model = get_config('block_igis_ollama_claude', 'model');
-        $temperature = get_config('block_igis_ollama_claude', 'temperature');
-        $max_tokens = get_config('block_igis_ollama_claude', 'max_tokens');
+        // Determine which API to use if not specified
+        if (empty($api)) {
+            $api = get_config('block_igis_ollama_claude', 'defaultapi');
+            
+            // Check if block has specific API preference
+            if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config) && !empty($config->defaultapi)) {
+                $api = $config->defaultapi;
+            }
+        }
         
-        // If instance level settings are allowed and set, use those instead
-        if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config)) {
-            // If custom model is set for this instance
-            if (!empty($config->model)) {
-                $model = $config->model;
+        // Check if the selected API is available
+        $ollamaapiurl = get_config('block_igis_ollama_claude', 'ollamaapiurl');
+        $claudeapikey = get_config('block_igis_ollama_claude', 'claudeapikey');
+        
+        if ($api === 'ollama' && empty($ollamaapiurl)) {
+            if (!empty($claudeapikey)) {
+                $api = 'claude'; // Fallback to Claude API
+            } else {
+                throw new moodle_exception('No API available');
             }
-            
-            // If custom temperature is set for this instance
-            if (!empty($config->temperature)) {
-                $temperature = $config->temperature;
-            }
-            
-            // If custom max_tokens is set for this instance
-            if (!empty($config->max_tokens)) {
-                $max_tokens = $config->max_tokens;
+        } else if ($api === 'claude' && empty($claudeapikey)) {
+            if (!empty($ollamaapiurl)) {
+                $api = 'ollama'; // Fallback to Ollama API
+            } else {
+                throw new moodle_exception('No API available');
             }
         }
         
@@ -121,22 +128,104 @@ class block_igis_ollama_claude_external extends external_api {
         
         // Add system prompt if provided
         if (!empty($prompt)) {
-            $messages[] = [
-                'role' => 'system',
-                'content' => $prompt
-            ];
+            $systemPrompt = $prompt;
+        } else {
+            $systemPrompt = get_config('block_igis_ollama_claude', 'completion_prompt');
         }
         
         // Add source of truth if provided
         if (!empty($sourceoftruth)) {
             $sotMessage = "Below is a list of questions and their answers. This information should be used as a reference for any inquiries:\n\n" . $sourceoftruth;
             
-            // Add SoT as a system message
-            $messages[] = [
-                'role' => 'system',
-                'content' => $sotMessage
-            ];
+            // Add SoT to system prompt
+            $systemPrompt = $sotMessage . "\n\n" . $systemPrompt;
         }
+        
+        // Route to appropriate API
+        $aiResponse = '';
+        if ($api === 'ollama') {
+            $aiResponse = self::get_ollama_response($message, $conversationHistory, $systemPrompt, $config);
+        } else {
+            $aiResponse = self::get_claude_response($message, $conversationHistory, $systemPrompt, $config);
+        }
+        
+        // Log the interaction if logging is enabled
+        if (get_config('block_igis_ollama_claude', 'enablelogging')) {
+            $log = new stdClass();
+            $log->userid = $USER->id;
+            $log->courseid = $courseid;
+            $log->contextid = $contextid;
+            $log->instanceid = $instanceid;
+            $log->message = $message;
+            $log->response = $aiResponse;
+            $log->sourceoftruth = $sourceoftruth;
+            $log->prompt = $prompt;
+            $log->model = ($api === 'ollama') 
+                ? get_config('block_igis_ollama_claude', 'ollamamodel') 
+                : get_config('block_igis_ollama_claude', 'claudemodel');
+                
+            // Check for instance-specific model settings
+            if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config)) {
+                if ($api === 'ollama' && !empty($config->ollamamodel)) {
+                    $log->model = $config->ollamamodel;
+                } else if ($api === 'claude' && !empty($config->claudemodel)) {
+                    $log->model = $config->claudemodel;
+                }
+            }
+            
+            $log->api = $api;
+            $log->timecreated = time();
+            
+            $DB->insert_record('block_igis_ollama_claude_logs', $log);
+        }
+        
+        return [
+            'response' => $aiResponse
+        ];
+    }
+    
+    /**
+     * Get response from Ollama API
+     *
+     * @param string $message User message
+     * @param array $conversationHistory Conversation history
+     * @param string $systemPrompt System prompt
+     * @param object $config Block instance config
+     * @return string AI response
+     */
+    private static function get_ollama_response($message, $conversationHistory, $systemPrompt, $config) {
+        // Get Ollama API settings
+        $apiurl = get_config('block_igis_ollama_claude', 'ollamaapiurl');
+        $model = get_config('block_igis_ollama_claude', 'ollamamodel');
+        $temperature = get_config('block_igis_ollama_claude', 'temperature');
+        $max_tokens = get_config('block_igis_ollama_claude', 'max_tokens');
+        
+        // If instance level settings are allowed and set, use those instead
+        if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config)) {
+            // If custom model is set for this instance
+            if (!empty($config->ollamamodel)) {
+                $model = $config->ollamamodel;
+            }
+            
+            // If custom temperature is set for this instance
+            if (!empty($config->temperature)) {
+                $temperature = $config->temperature;
+            }
+            
+            // If custom max_tokens is set for this instance
+            if (!empty($config->max_tokens)) {
+                $max_tokens = $config->max_tokens;
+            }
+        }
+        
+        // Build the messages array
+        $messages = [];
+        
+        // Add system message
+        $messages[] = [
+            'role' => 'system',
+            'content' => $systemPrompt
+        ];
         
         // Add conversation history
         foreach ($conversationHistory as $exchange) {
@@ -192,28 +281,104 @@ class block_igis_ollama_claude_external extends external_api {
             throw new moodle_exception('Invalid response from Ollama API');
         }
         
-        $aiResponse = $response['message']['content'];
+        return $response['message']['content'];
+    }
+    
+    /**
+     * Get response from Claude API
+     *
+     * @param string $message User message
+     * @param array $conversationHistory Conversation history
+     * @param string $systemPrompt System prompt
+     * @param object $config Block instance config
+     * @return string AI response
+     */
+    private static function get_claude_response($message, $conversationHistory, $systemPrompt, $config) {
+        // Get Claude API settings
+        $apikey = get_config('block_igis_ollama_claude', 'claudeapikey');
+        $apiurl = get_config('block_igis_ollama_claude', 'claudeapiurl');
+        $model = get_config('block_igis_ollama_claude', 'claudemodel');
+        $temperature = get_config('block_igis_ollama_claude', 'temperature');
+        $max_tokens = get_config('block_igis_ollama_claude', 'max_tokens');
         
-        // Log the interaction if logging is enabled
-        if (get_config('block_igis_ollama_claude', 'enablelogging')) {
-            $log = new stdClass();
-            $log->userid = $USER->id;
-            $log->courseid = $courseid;
-            $log->contextid = $contextid;
-            $log->instanceid = $instanceid;
-            $log->message = $message;
-            $log->response = $aiResponse;
-            $log->sourceoftruth = $sourceoftruth;
-            $log->prompt = $prompt;
-            $log->model = $model;
-            $log->timecreated = time();
+        // If instance level settings are allowed and set, use those instead
+        if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config)) {
+            // If custom model is set for this instance
+            if (!empty($config->claudemodel)) {
+                $model = $config->claudemodel;
+            }
             
-            $DB->insert_record('block_igis_ollama_claude_logs', $log);
+            // If custom temperature is set for this instance
+            if (!empty($config->temperature)) {
+                $temperature = $config->temperature;
+            }
+            
+            // If custom max_tokens is set for this instance
+            if (!empty($config->max_tokens)) {
+                $max_tokens = $config->max_tokens;
+            }
         }
         
-        return [
-            'response' => $aiResponse
+        // Build the messages array for Claude API
+        $messages = [];
+        
+        // Add conversation history
+        foreach ($conversationHistory as $exchange) {
+            $messages[] = [
+                'role' => 'user',
+                'content' => $exchange['message']
+            ];
+            
+            if (isset($exchange['response'])) {
+                $messages[] = [
+                    'role' => 'assistant',
+                    'content' => $exchange['response']
+                ];
+            }
+        }
+        
+        // Add current message
+        $messages[] = [
+            'role' => 'user',
+            'content' => $message
         ];
+        
+        // Prepare API request data for Claude
+        $data = [
+            'model' => $model,
+            'messages' => $messages,
+            'system' => $systemPrompt,
+            'temperature' => floatval($temperature),
+            'max_tokens' => intval($max_tokens)
+        ];
+        
+        // Make API request to Claude
+        $ch = curl_init($apiurl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'x-api-key: ' . $apikey,
+            'anthropic-version: 2023-06-01'
+        ]);
+        
+        $result = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        // Check for errors
+        if ($httpCode != 200) {
+            throw new moodle_exception('Failed to get response from Claude API. HTTP code: ' . $httpCode);
+        }
+        
+        // Decode the response
+        $response = json_decode($result, true);
+        if (!isset($response['content'][0]['text'])) {
+            throw new moodle_exception('Invalid response from Claude API');
+        }
+        
+        return $response['content'][0]['text'];
     }
 
     /**

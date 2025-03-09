@@ -22,40 +22,111 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die;
+defined('MOODLE_INTERNAL') || die();
 
 if ($ADMIN->fulltree) {
-    // Header for API settings
+    // Header for General settings
     $settings->add(new admin_setting_heading(
-        'block_igis_ollama_claude/apisettings',
-        get_string('apisettings', 'block_igis_ollama_claude'),
+        'block_igis_ollama_claude/generalsettings',
+        get_string('generalsettings', 'block_igis_ollama_claude'),
         ''
     ));
-
-    // Ollama API URL
-    $settings->add(new admin_setting_configtext(
-        'block_igis_ollama_claude/apiurl',
-        get_string('apiurl', 'block_igis_ollama_claude'),
-        get_string('apiurlhelp', 'block_igis_ollama_claude'),
-        'http://localhost:11434',
-        PARAM_URL
+    
+    // Default API service
+    $apioptions = [
+        'ollama' => get_string('ollamaapi', 'block_igis_ollama_claude'),
+        'claude' => get_string('claudeapi', 'block_igis_ollama_claude'),
+    ];
+    
+    $settings->add(new admin_setting_configselect(
+        'block_igis_ollama_claude/defaultapi',
+        get_string('defaultapi', 'block_igis_ollama_claude'),
+        get_string('defaultapihelp', 'block_igis_ollama_claude'),
+        'ollama',
+        $apioptions
     ));
-
-    // Model selection
-    $settings->add(new admin_setting_configtext(
-        'block_igis_ollama_claude/model',
-        get_string('model', 'block_igis_ollama_claude'),
-        get_string('modelhelp', 'block_igis_ollama_claude'),
-        'claude',
-        PARAM_TEXT
+    
+    // Allow users to select API
+    $settings->add(new admin_setting_configcheckbox(
+        'block_igis_ollama_claude/allowapiselection',
+        get_string('allowapiselection', 'block_igis_ollama_claude'),
+        get_string('allowapiselectionhelp', 'block_igis_ollama_claude'),
+        1
     ));
-
+    
     // Restrict to logged-in users
     $settings->add(new admin_setting_configcheckbox(
         'block_igis_ollama_claude/loggedinonly',
         get_string('loggedinonly', 'block_igis_ollama_claude'),
         get_string('loggedonlyhelp', 'block_igis_ollama_claude'),
         1
+    ));
+    
+    // Header for Ollama API settings
+    $settings->add(new admin_setting_heading(
+        'block_igis_ollama_claude/ollamaapisettings',
+        get_string('ollamaapisettings', 'block_igis_ollama_claude'),
+        ''
+    ));
+
+    // Ollama API URL
+    $settings->add(new admin_setting_configtext(
+        'block_igis_ollama_claude/ollamaapiurl',
+        get_string('ollamaapiurl', 'block_igis_ollama_claude'),
+        get_string('ollamaapiurlhelp', 'block_igis_ollama_claude'),
+        'http://localhost:11434',
+        PARAM_URL
+    ));
+
+    // Ollama Model selection
+    $settings->add(new admin_setting_configtext(
+        'block_igis_ollama_claude/ollamamodel',
+        get_string('ollamamodel', 'block_igis_ollama_claude'),
+        get_string('ollamamodelhelp', 'block_igis_ollama_claude'),
+        'claude',
+        PARAM_TEXT
+    ));
+    
+    // Header for Claude API settings
+    $settings->add(new admin_setting_heading(
+        'block_igis_ollama_claude/claudeapisettings',
+        get_string('claudeapisettings', 'block_igis_ollama_claude'),
+        ''
+    ));
+    
+    // Claude API Key
+    $settings->add(new admin_setting_configpasswordunmask(
+        'block_igis_ollama_claude/claudeapikey',
+        get_string('claudeapikey', 'block_igis_ollama_claude'),
+        get_string('claudeapikeyhelp', 'block_igis_ollama_claude'),
+        '',
+        PARAM_RAW
+    ));
+    
+    // Claude API URL
+    $settings->add(new admin_setting_configtext(
+        'block_igis_ollama_claude/claudeapiurl',
+        get_string('claudeapiurl', 'block_igis_ollama_claude'),
+        get_string('claudeapiurlhelp', 'block_igis_ollama_claude'),
+        'https://api.anthropic.com/v1/messages',
+        PARAM_URL
+    ));
+    
+    // Claude Model selection
+    $claudemodels = [
+        'claude-3-opus-20240229' => 'Claude 3 Opus',
+        'claude-3-sonnet-20240229' => 'Claude 3 Sonnet',
+        'claude-3-haiku-20240307' => 'Claude 3 Haiku',
+        'claude-3.5-sonnet-20240620' => 'Claude 3.5 Sonnet',
+        'claude-3.7-sonnet-20250219' => 'Claude 3.7 Sonnet',
+    ];
+    
+    $settings->add(new admin_setting_configselect(
+        'block_igis_ollama_claude/claudemodel',
+        get_string('claudemodel', 'block_igis_ollama_claude'),
+        get_string('claudemodelhelp', 'block_igis_ollama_claude'),
+        'claude-3-haiku-20240307',
+        $claudemodels
     ));
 
     // Header for UI settings

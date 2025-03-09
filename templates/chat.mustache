@@ -35,6 +35,10 @@
     * uniqid Unique ID for DOM elements
     * logging Whether logging is enabled
     * wwwroot The root URL of the Moodle site
+    * allowapiselection Whether to allow API selection
+    * defaultapi The default API service to use
+    * ollamaapiavailable Whether Ollama API is available
+    * claudeapiavailable Whether Claude API is available
 
     Example context (json):
     {
@@ -46,7 +50,11 @@
         "contextid": 456,
         "uniqid": "abc123",
         "logging": true,
-        "wwwroot": "https://moodle.example.com"
+        "wwwroot": "https://moodle.example.com",
+        "allowapiselection": true,
+        "defaultapi": "ollama",
+        "ollamaapiavailable": true,
+        "claudeapiavailable": true
     }
 }}
 
@@ -77,6 +85,20 @@
                 <i class="fa fa-trash-alt" aria-hidden="true"></i>
                 {{# str }} clearconversation, block_igis_ollama_claude {{/ str }}
             </button>
+            
+            {{#allowapiselection}}
+            <div class="ollama-claude-api-selector">
+                <label for="ollama-claude-api-select-{{uniqid}}" class="sr-only">{{# str }} selectapi, block_igis_ollama_claude {{/ str }}</label>
+                <select id="ollama-claude-api-select-{{uniqid}}" class="form-control form-control-sm" {{^ollamaapiavailable}}{{^claudeapiavailable}}disabled{{/claudeapiavailable}}{{/ollamaapiavailable}}>
+                    {{#ollamaapiavailable}}
+                    <option value="ollama" {{#defaultapi_ollama}}selected{{/defaultapi_ollama}}>{{# str }} ollamamodel, block_igis_ollama_claude {{/ str }}</option>
+                    {{/ollamaapiavailable}}
+                    {{#claudeapiavailable}}
+                    <option value="claude" {{#defaultapi_claude}}selected{{/defaultapi_claude}}>{{# str }} claudemodel, block_igis_ollama_claude {{/ str }}</option>
+                    {{/claudeapiavailable}}
+                </select>
+            </div>
+            {{/allowapiselection}}
         </div>
         <div class="input-group">
             <textarea id="ollama-claude-input-{{uniqid}}" class="form-control" rows="2" placeholder="{{# str }} typemessage, block_igis_ollama_claude {{/ str }}"></textarea>
@@ -103,6 +125,9 @@
     <input type="hidden" id="ollama-claude-showlabels-{{uniqid}}" value="{{showlabels}}">
     <input type="hidden" id="ollama-claude-sourceoftruth-{{uniqid}}" value="{{sourceoftruth}}">
     <input type="hidden" id="ollama-claude-customprompt-{{uniqid}}" value="{{customprompt}}">
+    <input type="hidden" id="ollama-claude-defaultapi-{{uniqid}}" value="{{defaultapi}}">
+    <input type="hidden" id="ollama-claude-ollamamodel-{{uniqid}}" value="{{ollamamodel}}">
+    <input type="hidden" id="ollama-claude-claudemodel-{{uniqid}}" value="{{claudemodel}}">
 </div>
 
 <style>
@@ -173,7 +198,18 @@
     .ollama-claude-chat-controls {
         margin-bottom: 8px;
         display: flex;
-        justify-content: flex-end;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .ollama-claude-api-selector {
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .ollama-claude-api-selector select {
+        max-width: 150px;
+        margin-left: 5px;
     }
 
     .ollama-claude-logging-notice {

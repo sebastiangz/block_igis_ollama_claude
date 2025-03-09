@@ -76,11 +76,11 @@ function xmldb_block_igis_ollama_claude_upgrade($oldversion) {
         }
 
         // Set default values for settings
-        if (!get_config('block_igis_ollama_claude', 'apiurl')) {
-            set_config('apiurl', 'http://localhost:11434', 'block_igis_ollama_claude');
+        if (!get_config('block_igis_ollama_claude', 'ollamaapiurl')) {
+            set_config('ollamaapiurl', 'http://localhost:11434', 'block_igis_ollama_claude');
         }
-        if (!get_config('block_igis_ollama_claude', 'model')) {
-            set_config('model', 'claude', 'block_igis_ollama_claude');
+        if (!get_config('block_igis_ollama_claude', 'ollamamodel')) {
+            set_config('ollamamodel', 'claude', 'block_igis_ollama_claude');
         }
         if (!get_config('block_igis_ollama_claude', 'assistant_name')) {
             set_config('assistant_name', 'Claude', 'block_igis_ollama_claude');
@@ -105,6 +105,33 @@ function xmldb_block_igis_ollama_claude_upgrade($oldversion) {
 
         // IGIS Ollama Claude savepoint reached
         upgrade_block_savepoint(true, 2025030900, 'igis_ollama_claude');
+    }
+
+    if ($oldversion < 2025032500) {
+        // Adding the api field to the logs table for tracking which service was used
+        $table = new xmldb_table('block_igis_ollama_claude_logs');
+        $field = new xmldb_field('api', XMLDB_TYPE_CHAR, '20', null, null, null, null, 'model');
+
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Set default values for new API selection settings
+        if (!get_config('block_igis_ollama_claude', 'defaultapi')) {
+            set_config('defaultapi', 'ollama', 'block_igis_ollama_claude');
+        }
+        if (!get_config('block_igis_ollama_claude', 'allowapiselection')) {
+            set_config('allowapiselection', '1', 'block_igis_ollama_claude');
+        }
+        if (!get_config('block_igis_ollama_claude', 'claudeapiurl')) {
+            set_config('claudeapiurl', 'https://api.anthropic.com/v1/messages', 'block_igis_ollama_claude');
+        }
+        if (!get_config('block_igis_ollama_claude', 'claudemodel')) {
+            set_config('claudemodel', 'claude-3-haiku-20240307', 'block_igis_ollama_claude');
+        }
+
+        // IGIS Ollama Claude savepoint reached
+        upgrade_block_savepoint(true, 2025032500, 'igis_ollama_claude');
     }
 
     return true;
