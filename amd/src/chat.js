@@ -43,11 +43,13 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
     const inputField = document.getElementById(`ollama-claude-input-${uniqueId}`);
     const sendButton = document.getElementById(`ollama-claude-send-${uniqueId}`);
     const clearButton = document.getElementById(`ollama-claude-clear-${uniqueId}`);
+    const apiSelector = document.getElementById(`ollama-claude-api-select-${uniqueId}`);
     
     // Helper variables
     const assistantName = document.getElementById(`ollama-claude-assistant-name-${uniqueId}`).value;
     const userName = document.getElementById(`ollama-claude-user-name-${uniqueId}`).value;
     const showLabels = document.getElementById(`ollama-claude-showlabels-${uniqueId}`).value === '1';
+    const defaultApi = document.getElementById(`ollama-claude-defaultapi-${uniqueId}`).value;
     
     // Conversation history
     let conversation = [];
@@ -160,13 +162,27 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
             loadingState.classList.remove('d-none');
             sendButton.disabled = true;
             inputField.disabled = true;
+            if (apiSelector) {
+                apiSelector.disabled = true;
+            }
         } else {
             normalState.classList.remove('d-none');
             loadingState.classList.add('d-none');
             sendButton.disabled = false;
             inputField.disabled = false;
+            if (apiSelector) {
+                apiSelector.disabled = false;
+            }
             inputField.focus();
         }
+    };
+    
+    // Get currently selected API
+    const getSelectedApi = () => {
+        if (apiSelector) {
+            return apiSelector.value;
+        }
+        return defaultApi;
     };
     
     // Handle sending a message
@@ -195,7 +211,8 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
                 instanceid: instanceId,
                 contextid: contextId,
                 sourceoftruth: sourceOfTruth,
-                prompt: customPrompt
+                prompt: customPrompt,
+                api: getSelectedApi()
             }
         }])[0].done(response => {
             // Add response to UI
@@ -239,6 +256,14 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
     });
     
     clearButton.addEventListener('click', clearConversation);
+    
+    // API selector change event
+    if (apiSelector) {
+        apiSelector.addEventListener('change', () => {
+            // Optionally handle API change
+            // We could clear conversation or add a system message here
+        });
+    }
     
     // Load existing conversation if available
     loadConversation();

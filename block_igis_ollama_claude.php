@@ -28,7 +28,7 @@ defined('MOODLE_INTERNAL') || die();
  * Ollama Claude AI Chat Block class
  *
  * @package    block_igis_ollama_claude
- * @copyright  2025 Your Name <your.email@example.com>
+ * @copyright  2025 Sebastián González Zepeda <sgonzalez@infraestructuragis.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class block_igis_ollama_claude extends block_base {
@@ -59,6 +59,26 @@ class block_igis_ollama_claude extends block_base {
     }
 
     /**
+     * Check if Ollama API is available
+     *
+     * @return bool
+     */
+    private function is_ollama_api_available() {
+        $apiurl = get_config('block_igis_ollama_claude', 'ollamaapiurl');
+        return !empty($apiurl);
+    }
+
+    /**
+     * Check if Claude API is available
+     *
+     * @return bool
+     */
+    private function is_claude_api_available() {
+        $apikey = get_config('block_igis_ollama_claude', 'claudeapikey');
+        return !empty($apikey);
+    }
+
+    /**
      * Get content
      *
      * @return stdClass
@@ -78,11 +98,14 @@ class block_igis_ollama_claude extends block_base {
             return $this->content;
         }
 
-        // If the API URL isn't set, show an error message
-        if (empty(get_config('block_igis_ollama_claude', 'apiurl'))) {
+        // Check if any API is available
+        $ollamaapiavailable = $this->is_ollama_api_available();
+        $claudeapiavailable = $this->is_claude_api_available();
+
+        if (!$ollamaapiavailable && !$claudeapiavailable) {
             $this->content = new stdClass();
             if (has_capability('moodle/site:config', context_system::instance())) {
-                $settingsurl = new moodle_url('/admin/settings.php', ['section' => 'blocksettingigis_ollama_claude']);
+                $settingsurl = new moodle_url('/admin/settings.php', array('section' => 'blocksettingigis_ollama_claude'));
                 $this->content->text = get_string('noapiurlsetupadmin', 'block_igis_ollama_claude', $settingsurl->out());
             } else {
                 $this->content->text = get_string('noapiurlsetup', 'block_igis_ollama_claude');
@@ -95,6 +118,19 @@ class block_igis_ollama_claude extends block_base {
 
         // Get the renderer
         $renderer = $this->page->get_renderer('block_igis_ollama_claude');
+
+        // Get default API service
+        $defaultapi = get_config('block_igis_ollama_claude', 'defaultapi');
+        
+        // If default API is not available, use the other one
+        if ($defaultapi === 'ollama' && !$ollamaapiavailable) {
+            $defaultapi = 'claude';
+        } else if ($defaultapi === 'claude' && !$claudeapiavailable) {
+            $defaultapi = 'ollama';
+        }
+        
+        // Allow API selection
+        $allowapiselection = get_config('block_igis_ollama_claude', 'allowapiselection');
 
         // Load the main chat interface
         $data = new stdClass();
@@ -110,6 +146,33 @@ class block_igis_ollama_claude extends block_base {
         $data->logging = get_config('block_igis_ollama_claude', 'enablelogging');
         $data->contextid = $this->context->id;
         $data->uniqid = uniqid(); // For unique DOM IDs
+        
+        // API Selection data
+        $data->allowapiselection = $allowapiselection;
+        $data->defaultapi = $defaultapi;
+        $data->defaultapi_ollama = ($defaultapi === 'ollama');
+        $data->defaultapi_claude = ($defaultapi === 'claude');
+        $data->ollamaapiavailable = $ollamaapiavailable;
+        $data->claudeapiavailable = $claudeapiavailable;
+        
+        // Model information
+        $data->ollamamodel = get_config('block_igis_ollama_claude', 'ollamamodel');
+        $data->claudemodel = get_config('block_igis_ollama_claude', 'claudemodel');
+        
+        // If instance level settings are allowed and set
+        if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($this->config)) {
+            if (!empty($this->config->ollamamodel)) {
+                $data->ollamamodel = $this->config->ollamamodel;
+            }
+            if (!empty($this->config->claudemodel)) {
+                $data->claudemodel = $this->config->claudemodel;
+            }
+            if (!empty($this->config->defaultapi)) {
+                $data->defaultapi = $this->config->defaultapi;
+                $data->defaultapi_ollama = ($this->config->defaultapi === 'ollama');
+                $data->defaultapi_claude = ($this->config->defaultapi === 'claude');
+            }
+        }
         
         // Get custom completion prompt for this instance if it exists
         $data->customprompt = isset($this->config->completion_prompt) ? $this->config->completion_prompt : '';

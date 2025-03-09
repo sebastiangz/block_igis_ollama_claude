@@ -27,7 +27,17 @@ $string['igis_ollama_claude:addinstance'] = 'Añadir un nuevo bloque de Chat IA 
 $string['igis_ollama_claude:myaddinstance'] = 'Añadir un nuevo bloque de Chat IA Claude Ollama al Tablero';
 $string['igis_ollama_claude:viewlogs'] = 'Ver registros del Chat IA Claude Ollama';
 
-// Block configuration
+// Configuración general
+$string['generalsettings'] = 'Configuración General';
+$string['defaultapi'] = 'Servicio API predeterminado';
+$string['defaultapihelp'] = 'Seleccione qué servicio de IA usar por defecto';
+$string['ollamaapi'] = 'Ollama (local)';
+$string['claudeapi'] = 'Claude (nube)';
+$string['allowapiselection'] = 'Permitir selección de API';
+$string['allowapiselectionhelp'] = 'Si está habilitado, los usuarios pueden seleccionar qué servicio de IA utilizar';
+$string['selectapi'] = 'Seleccionar servicio de IA';
+
+// Configuración del bloque
 $string['blocktitle'] = 'Título del bloque';
 $string['showlabels'] = 'Mostrar etiquetas';
 $string['showlabelshelp'] = 'Mostrar etiquetas del asistente y usuario en la interfaz de chat';
@@ -35,16 +45,27 @@ $string['sourceoftruth'] = 'Fuente de verdad';
 $string['sourceoftruthhelp'] = 'Añadir una lista de preguntas y respuestas que la IA debe usar para responder con precisión. El formato debe ser P: (pregunta) seguido de R: (respuesta).';
 $string['completion_prompt'] = 'Prompt de completado';
 
-// API settings
-$string['apisettings'] = 'Configuración de API';
-$string['apiurl'] = 'URL de API Ollama';
-$string['apiurlhelp'] = 'La URL de tu servicio API Ollama, incluyendo el puerto (p.ej., http://localhost:11434)';
-$string['model'] = 'Modelo Claude';
-$string['modelhelp'] = 'El nombre del modelo Claude a utilizar (p.ej., claude, claude-instant)';
+// Configuración API - Ollama
+$string['ollamaapisettings'] = 'Configuración API Ollama';
+$string['ollamaapiurl'] = 'URL API Ollama';
+$string['ollamaapiurlhelp'] = 'La URL de su servicio API Ollama, incluyendo el puerto (p.ej., http://localhost:11434)';
+$string['ollamamodel'] = 'Modelo Ollama';
+$string['ollamamodelhelp'] = 'El nombre del modelo Claude a utilizar en Ollama (p.ej., claude, claude-instant)';
+
+// Configuración API - Claude
+$string['claudeapisettings'] = 'Configuración API Claude';
+$string['claudeapikey'] = 'Clave API Claude';
+$string['claudeapikeyhelp'] = 'Su clave API de Anthropic Claude para acceder al servicio en la nube';
+$string['claudeapiurl'] = 'URL API Claude';
+$string['claudeapiurlhelp'] = 'La URL para la API de Claude (normalmente https://api.anthropic.com/v1/messages)';
+$string['claudemodel'] = 'Modelo Claude';
+$string['claudemodelhelp'] = 'La versión específica del modelo Claude a utilizar (p.ej., claude-3-opus, claude-3-sonnet)';
+
+// Configuración de restricción de acceso
 $string['loggedinonly'] = 'Restringir uso del chat a usuarios conectados';
 $string['loggedonlyhelp'] = 'Si está marcado, solo los usuarios que hayan iniciado sesión podrán usar el chat';
 
-// UI settings
+// Configuración de interfaz de usuario
 $string['uisettings'] = 'Configuración de Interfaz de Usuario';
 $string['assistantname'] = 'Nombre del asistente';
 $string['assistantnamehelp'] = 'El nombre que se mostrará para el asistente IA en el chat';
@@ -55,13 +76,13 @@ $string['defaultusername'] = 'Tú';
 $string['enablelogging'] = 'Habilitar registro de actividad';
 $string['enablelogginghelp'] = 'Si está marcado, se registrarán todos los mensajes enviados por los usuarios junto con las respuestas de la IA';
 
-// Prompt settings
+// Configuración de prompts
 $string['promptsettings'] = 'Configuración de Prompts';
 $string['completionprompt'] = 'Prompt de completado';
 $string['completionprompthelp'] = 'El texto añadido al inicio de la conversación para influir en la personalidad y respuestas de la IA';
 $string['defaultcompletionprompt'] = 'Eres un asistente útil para una plataforma de aprendizaje Moodle. Proporcionas información concisa y precisa para ayudar a los estudiantes con sus preguntas. Si no conoces la respuesta, admítelo en lugar de adivinar.';
 
-// Advanced settings
+// Configuración avanzada
 $string['advancedsettings'] = 'Configuración Avanzada';
 $string['advancedsettingshelp'] = 'Estos son parámetros adicionales para ajustar el comportamiento del modelo';
 $string['instancesettings'] = 'Configuración a nivel de instancia';
@@ -71,7 +92,7 @@ $string['temperaturehelp'] = 'Controla la aleatoriedad. Valores más bajos (p.ej
 $string['maxtokens'] = 'Tokens máximos';
 $string['maxtokenshelp'] = 'El número máximo de tokens que la IA puede generar en su respuesta';
 
-// Chat interface
+// Interfaz de chat
 $string['typemessage'] = 'Escribe tu mensaje...';
 $string['sendmessage'] = 'Enviar';
 $string['chatbeingrecorded'] = 'Este chat está siendo registrado';
@@ -83,20 +104,24 @@ $string['logintochat'] = 'Por favor, inicia sesión para usar la función de cha
 $string['noapiurlsetup'] = 'Este bloque de chat aún no ha sido configurado. Por favor, contacta al administrador del sitio.';
 $string['noapiurlsetupadmin'] = 'Claude Ollama no ha sido configurado aún. <a href="{$a}">Configura la URL de la API</a> para comenzar.';
 
-<?php
 // Strings para privacidad
-$string['privacy:metadata:block_igis_ollama_claude_logs'] = 'Information about user interactions with the Claude AI assistant';
-$string['privacy:metadata:block_igis_ollama_claude_logs:userid'] = 'The ID of the user who sent the message';
-$string['privacy:metadata:block_igis_ollama_claude_logs:courseid'] = 'The course ID where the interaction occurred';
-$string['privacy:metadata:block_igis_ollama_claude_logs:contextid'] = 'The context ID where the interaction occurred';
-$string['privacy:metadata:block_igis_ollama_claude_logs:instanceid'] = 'The block instance ID where the interaction occurred';
-$string['privacy:metadata:block_igis_ollama_claude_logs:message'] = 'The message sent by the user';
-$string['privacy:metadata:block_igis_ollama_claude_logs:response'] = 'The response from the AI assistant';
-$string['privacy:metadata:block_igis_ollama_claude_logs:timecreated'] = 'The time when the interaction occurred';
-$string['privacy:metadata:ollama_api'] = 'To integrate with Ollama, some data needs to be sent to the Ollama API service';
-$string['privacy:metadata:ollama_api:message'] = 'The message sent by the user';
-$string['privacy:metadata:ollama_api:prompt'] = 'The system prompt used to guide the AI behavior';
-$string['privacy:metadata:ollama_api:sourceoftruth'] = 'The source of truth data used to provide accurate information';
+$string['privacy:metadata:block_igis_ollama_claude_logs'] = 'Información sobre las interacciones de los usuarios con el asistente IA Claude';
+$string['privacy:metadata:block_igis_ollama_claude_logs:userid'] = 'El ID del usuario que envió el mensaje';
+$string['privacy:metadata:block_igis_ollama_claude_logs:courseid'] = 'El ID del curso donde ocurrió la interacción';
+$string['privacy:metadata:block_igis_ollama_claude_logs:contextid'] = 'El ID del contexto donde ocurrió la interacción';
+$string['privacy:metadata:block_igis_ollama_claude_logs:instanceid'] = 'El ID de la instancia del bloque donde ocurrió la interacción';
+$string['privacy:metadata:block_igis_ollama_claude_logs:message'] = 'El mensaje enviado por el usuario';
+$string['privacy:metadata:block_igis_ollama_claude_logs:response'] = 'La respuesta del asistente IA';
+$string['privacy:metadata:block_igis_ollama_claude_logs:timecreated'] = 'El momento en que ocurrió la interacción';
+$string['privacy:metadata:block_igis_ollama_claude_logs:api'] = 'El servicio API utilizado para procesar la petición';
+$string['privacy:metadata:ollama_api'] = 'Para integrarse con Ollama, algunos datos deben enviarse al servicio API Ollama';
+$string['privacy:metadata:ollama_api:message'] = 'El mensaje enviado por el usuario';
+$string['privacy:metadata:ollama_api:prompt'] = 'El prompt del sistema utilizado para guiar el comportamiento de la IA';
+$string['privacy:metadata:ollama_api:sourceoftruth'] = 'Los datos de la fuente de verdad utilizados para proporcionar información precisa';
+$string['privacy:metadata:claude_api'] = 'Para integrarse con Claude, algunos datos deben enviarse al servicio API Claude';
+$string['privacy:metadata:claude_api:message'] = 'El mensaje enviado por el usuario';
+$string['privacy:metadata:claude_api:prompt'] = 'El prompt del sistema utilizado para guiar el comportamiento de la IA';
+$string['privacy:metadata:claude_api:sourceoftruth'] = 'Los datos de la fuente de verdad utilizados para proporcionar información precisa';
 
 // Strings adicionales para la interfaz
 $string['welcomemessage'] = 'Hola, soy {$a->name}. ¿En qué puedo ayudarte hoy?';
