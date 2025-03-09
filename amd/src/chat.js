@@ -44,6 +44,7 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
     const sendButton = document.getElementById(`ollama-claude-send-${uniqueId}`);
     const clearButton = document.getElementById(`ollama-claude-clear-${uniqueId}`);
     const apiSelector = document.getElementById(`ollama-claude-api-select-${uniqueId}`);
+    const statusIndicator = document.getElementById(`ollama-claude-status-${uniqueId}`);
     
     // Helper variables
     const assistantName = document.getElementById(`ollama-claude-assistant-name-${uniqueId}`).value;
@@ -53,6 +54,12 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
     
     // Conversation history
     let conversation = [];
+    // Request timeout reference
+    let requestTimeout;
+    // Animation frame for typing animation
+    let typingAnimation;
+    // Dots for typing animation
+    let dots = 0;
     
     // Load conversation from localStorage if available
     const loadConversation = () => {
@@ -97,8 +104,10 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
             }
         }])[0].done(() => {
             // Optionally handle success
+            updateStatus('ready');
         }).fail(error => {
             console.error('Failed to clear conversation:', error);
+            updateStatus('error', 'No se pudo borrar la conversación');
         });
     };
     
@@ -147,9 +156,126 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
         scrollToBottom();
     };
     
+    // Add typing indicator to UI
+    const addTypingIndicator = () => {
+        // Check if typing indicator already exists
+        const existingIndicator = messagesContainer.querySelector('.ollama-claude-typing-indicator');
+        if (existingIndicator) {
+            return;
+        }
+        
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'ollama-claude-message assistant ollama-claude-typing-indicator';
+        
+        if (showLabels) {
+            const labelDiv = document.createElement('div');
+            labelDiv.className = 'ollama-claude-message-label';
+            labelDiv.textContent = assistantName;
+            typingDiv.appendChild(labelDiv);
+        }
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'ollama-claude-message-content';
+        contentDiv.innerHTML = '<span class="typing-dots">Pensando...</span>';
+        
+        typingDiv.appendChild(contentDiv);
+        messagesContainer.appendChild(typingDiv);
+        
+        // Clear the floats
+        const clearDiv = document.createElement('div');
+        clearDiv.style.clear = 'both';
+        messagesContainer.appendChild(clearDiv);
+        
+        scrollToBottom();
+        
+        // Start the typing animation
+        startTypingAnimation();
+    };
+    
+    // Remove typing indicator from UI
+    const removeTypingIndicator = () => {
+        const typingIndicator = messagesContainer.querySelector('.ollama-claude-typing-indicator');
+        if (typingIndicator) {
+            typingIndicator.remove();
+            // Also remove the clear div after it
+            const clearDiv = typingIndicator.nextElementSibling;
+            if (clearDiv && clearDiv.style.clear === 'both') {
+                clearDiv.remove();
+            }
+        }
+        
+        // Stop the typing animation
+        stopTypingAnimation();
+    };
+    
+    // Start typing animation
+    const startTypingAnimation = () => {
+        const animateDots = () => {
+            const typingDotsEl = messagesContainer.querySelector('.typing-dots');
+            if (typingDotsEl) {
+                dots = (dots + 1) % 4;
+                let dotsText = 'Pensando';
+                for (let i = 0; i < dots; i++) {
+                    dotsText += '.';
+                }
+                typingDotsEl.textContent = dotsText;
+            }
+            typingAnimation = requestAnimationFrame(animateDots);
+        };
+        
+        typingAnimation = requestAnimationFrame(animateDots);
+    };
+    
+    // Stop typing animation
+    const stopTypingAnimation = () => {
+        if (typingAnimation) {
+            cancelAnimationFrame(typingAnimation);
+            typingAnimation = null;
+        }
+    };
+    
     // Scroll to bottom of messages container
     const scrollToBottom = () => {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    };
+    
+    // Update status indicator
+    const updateStatus = (status, message = '') => {
+        if (!statusIndicator) return;
+        
+        // Clear any existing timeout
+        if (requestTimeout) {
+            clearTimeout(requestTimeout);
+            requestTimeout = null;
+        }
+        
+        statusIndicator.className = 'ollama-claude-status';
+        statusIndicator.classList.add(`status-${status}`);
+        
+        switch (status) {
+            case 'ready':
+                statusIndicator.textContent = 'Listo';
+                statusIndicator.style.display = 'none';
+                break;
+            case 'sending':
+                statusIndicator.textContent = 'Enviando mensaje...';
+                statusIndicator.style.display = 'block';
+                break;
+            case 'receiving':
+                statusIndicator.textContent = 'Procesando respuesta...';
+                statusIndicator.style.display = 'block';
+                break;
+            case 'error':
+                statusIndicator.textContent = message || 'Error en la solicitud';
+                statusIndicator.style.display = 'block';
+                // Auto-hide after 5 seconds
+                requestTimeout = setTimeout(() => {
+                    statusIndicator.style.display = 'none';
+                }, 5000);
+                break;
+            default:
+                statusIndicator.style.display = 'none';
+        }
     };
     
     // Set loading state
@@ -165,6 +291,16 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
             if (apiSelector) {
                 apiSelector.disabled = true;
             }
+            
+            // Update status and add typing indicator
+            updateStatus('sending');
+            addTypingIndicator();
+            
+            // Set a timeout for long requests
+            requestTimeout = setTimeout(() => {
+                updateStatus('receiving', 'La respuesta está tomando más tiempo de lo esperado...');
+            }, 5000);
+            
         } else {
             normalState.classList.remove('d-none');
             loadingState.classList.add('d-none');
@@ -173,6 +309,17 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
             if (apiSelector) {
                 apiSelector.disabled = false;
             }
+            
+            // Update status and remove typing indicator
+            updateStatus('ready');
+            removeTypingIndicator();
+            
+            // Clear any timeout
+            if (requestTimeout) {
+                clearTimeout(requestTimeout);
+                requestTimeout = null;
+            }
+            
             inputField.focus();
         }
     };
@@ -202,6 +349,9 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
         // Set loading state
         setLoading(true);
         
+        // Prepare the selected API
+        const selectedApi = getSelectedApi();
+        
         // Make API call
         Ajax.call([{
             methodname: 'block_igis_ollama_claude_get_chat_response',
@@ -212,9 +362,12 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
                 contextid: contextId,
                 sourceoftruth: sourceOfTruth,
                 prompt: customPrompt,
-                api: getSelectedApi()
+                api: selectedApi
             }
         }])[0].done(response => {
+            // Remove typing indicator before adding response
+            removeTypingIndicator();
+            
             // Add response to UI
             addMessageToUI(response.response, 'assistant');
             
@@ -230,16 +383,21 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
             // Reset loading state
             setLoading(false);
         }).fail(error => {
+            // Remove typing indicator
+            removeTypingIndicator();
+            
             // Handle error
             getString('erroroccurred', 'block_igis_ollama_claude')
                 .then(errorMsg => {
                     addMessageToUI(errorMsg, 'assistant', true);
                     console.error('API call failed:', error);
+                    updateStatus('error', 'Error al procesar la solicitud');
                     setLoading(false);
                 })
                 .catch(() => {
-                    addMessageToUI('An error occurred while processing your request. Please try again.', 'assistant', true);
+                    addMessageToUI('Ha ocurrido un error al procesar tu solicitud. Por favor, inténtalo de nuevo.', 'assistant', true);
                     console.error('API call failed:', error);
+                    updateStatus('error', 'Error al procesar la solicitud');
                     setLoading(false);
                 });
         });
@@ -260,13 +418,18 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
     // API selector change event
     if (apiSelector) {
         apiSelector.addEventListener('change', () => {
-            // Optionally handle API change
-            // We could clear conversation or add a system message here
+            // Optionally show a message about changing API
+            const selectedApi = apiSelector.value;
+            const apiName = selectedApi === 'ollama' ? 'Ollama (local)' : 'Claude (nube)';
+            updateStatus('ready', `Cambiado a ${apiName}`);
         });
     }
     
     // Load existing conversation if available
     loadConversation();
+    
+    // Initialize status
+    updateStatus('ready');
     
     // Focus input field
     inputField.focus();
