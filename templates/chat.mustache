@@ -86,6 +86,8 @@
                 {{# str }} clearconversation, block_igis_ollama_claude {{/ str }}
             </button>
             
+            <div id="ollama-claude-status-{{uniqid}}" class="ollama-claude-status" style="display: none;"></div>
+            
             {{#allowapiselection}}
             <div class="ollama-claude-api-selector">
                 <label for="ollama-claude-api-select-{{uniqid}}" class="sr-only">{{# str }} selectapi, block_igis_ollama_claude {{/ str }}</label>
@@ -224,5 +226,39 @@
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+    
+    .ollama-claude-typing-indicator .ollama-claude-message-content {
+        background-color: #f0f0f0;
+        color: #666;
+        font-style: italic;
+    }
+    
+    .ollama-claude-status {
+        font-size: 0.85em;
+        padding: 2px 8px;
+        border-radius: 10px;
+        background-color: #f0f0f0;
+        color: #666;
+        display: inline-block;
+        max-width: 200px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .ollama-claude-status.status-error {
+        background-color: #ffebee;
+        color: #c62828;
+    }
+    
+    .ollama-claude-status.status-sending {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+    }
+    
+    .ollama-claude-status.status-receiving {
+        background-color: #e3f2fd;
+        color: #1565c0;
     }
 </style>
