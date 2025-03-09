@@ -51,6 +51,8 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
     const userName = document.getElementById(`ollama-claude-user-name-${uniqueId}`).value;
     const showLabels = document.getElementById(`ollama-claude-showlabels-${uniqueId}`).value === '1';
     const defaultApi = document.getElementById(`ollama-claude-defaultapi-${uniqueId}`).value;
+    const ollamamodel = document.getElementById(`ollama-claude-ollamamodel-${uniqueId}`).value;
+    const claudemodel = document.getElementById(`ollama-claude-claudemodel-${uniqueId}`).value;
     
     // Conversation history
     let conversation = [];
@@ -60,6 +62,10 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
     let typingAnimation;
     // Dots for typing animation
     let dots = 0;
+    // Maximum retries for API calls
+    const MAX_RETRIES = 2;
+    // Current retry count
+    let retryCount = 0;
     
     // Load conversation from localStorage if available
     const loadConversation = () => {
@@ -331,6 +337,15 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
         }
         return defaultApi;
     };
+
+    // Function to get a human-readable model name for error messages
+    const getModelName = (api) => {
+        if (api === 'ollama') {
+            return 'Ollama (' + ollamamodel + ')';
+        } else {
+            return 'Claude (' + claudemodel + ')';
+        }
+    };
     
     // Handle sending a message
     const sendMessage = () => {
@@ -352,6 +367,15 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
         // Prepare the selected API
         const selectedApi = getSelectedApi();
         
+        // Reset retry count for new messages
+        retryCount = 0;
+        
+        // Call API with retry support
+        makeApiCall(message, selectedApi);
+    };
+    
+    // Make API call with retry support
+    const makeApiCall = (message, selectedApi) => {
         // Make API call
         Ajax.call([{
             methodname: 'block_igis_ollama_claude_get_chat_response',
@@ -382,21 +406,73 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
             
             // Reset loading state
             setLoading(false);
+            
+            // Reset retry count on success
+            retryCount = 0;
         }).fail(error => {
+            console.error('API call failed:', error);
+            
+            // Try to retry if under MAX_RETRIES
+            if (retryCount < MAX_RETRIES) {
+                retryCount++;
+                
+                // Update status to show retry attempt
+                const currentApi = getSelectedApi();
+                updateStatus('receiving', `Reintentando conexión con ${getModelName(currentApi)} (intento ${retryCount}/${MAX_RETRIES})...`);
+                
+                // Try again after a short delay (exponential backoff)
+                setTimeout(() => {
+                    makeApiCall(message, selectedApi);
+                }, 1000 * retryCount);
+                
+                return;
+            }
+            
+            // If we've exceeded retries or if there's an alternate API, try the other API
+            if (apiSelector && retryCount >= MAX_RETRIES) {
+                const currentApi = getSelectedApi();
+                const alternateApi = currentApi === 'ollama' ? 'claude' : 'ollama';
+                
+                // Check if alternate API option exists in selector
+                const alternateApiExists = Array.from(apiSelector.options).some(option => option.value === alternateApi);
+                
+                if (alternateApiExists) {
+                    // Try the alternate API
+                    updateStatus('receiving', `Cambiando a ${getModelName(alternateApi)} y reintentando...`);
+                    
+                    // Change the selected API
+                    apiSelector.value = alternateApi;
+                    
+                    // Reset retry count for new API
+                    retryCount = 0;
+                    
+                    // Make call with the alternate API
+                    setTimeout(() => {
+                        makeApiCall(message, alternateApi);
+                    }, 1000);
+                    
+                    return;
+                }
+            }
+            
             // Remove typing indicator
             removeTypingIndicator();
             
-            // Handle error
+            // Handle error after all retries fail
             getString('erroroccurred', 'block_igis_ollama_claude')
                 .then(errorMsg => {
-                    addMessageToUI(errorMsg, 'assistant', true);
-                    console.error('API call failed:', error);
+                    // Add more detailed error message
+                    const currentApi = getSelectedApi();
+                    const detailedError = `${errorMsg} (${getModelName(currentApi)})`;
+                    addMessageToUI(detailedError, 'assistant', true);
                     updateStatus('error', 'Error al procesar la solicitud');
                     setLoading(false);
                 })
                 .catch(() => {
-                    addMessageToUI('Ha ocurrido un error al procesar tu solicitud. Por favor, inténtalo de nuevo.', 'assistant', true);
-                    console.error('API call failed:', error);
+                    // Fallback error message
+                    const currentApi = getSelectedApi();
+                    const fallbackError = `Ha ocurrido un error al procesar tu solicitud con ${getModelName(currentApi)}. Por favor, inténtalo de nuevo.`;
+                    addMessageToUI(fallbackError, 'assistant', true);
                     updateStatus('error', 'Error al procesar la solicitud');
                     setLoading(false);
                 });
@@ -418,10 +494,14 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
     // API selector change event
     if (apiSelector) {
         apiSelector.addEventListener('change', () => {
-            // Optionally show a message about changing API
+            // Get information about the selected API
             const selectedApi = apiSelector.value;
-            const apiName = selectedApi === 'ollama' ? 'Ollama (local)' : 'Claude (nube)';
-            updateStatus('ready', `Cambiado a ${apiName}`);
+            const modelName = getModelName(selectedApi);
+            updateStatus('ready', `Cambiado a ${modelName}`);
+            
+            // Display a message in the chat
+            const changeMessage = `Sistema: Cambiado a ${modelName}. Las respuestas ahora vendrán de este modelo.`;
+            addMessageToUI(changeMessage, 'assistant');
         });
     }
     

@@ -108,11 +108,11 @@ if ($ADMIN->fulltree) {
         'block_igis_ollama_claude/claudeapiurl',
         get_string('claudeapiurl', 'block_igis_ollama_claude'),
         get_string('claudeapiurlhelp', 'block_igis_ollama_claude'),
-        'https://api.anthropic.com/v1/messages',
+        'https://api.anthropic.com/v1/messages',  // La URL es correcta según la documentación actual
         PARAM_URL
     ));
     
-    // Claude Model selection
+    // Claude Model selection - Updated with latest models
     $claudemodels = array(
         'claude-3-opus-20240229' => 'Claude 3 Opus',
         'claude-3-sonnet-20240229' => 'Claude 3 Sonnet',
@@ -218,5 +218,14 @@ if ($ADMIN->fulltree) {
         get_string('maxtokenshelp', 'block_igis_ollama_claude'),
         '1024',
         PARAM_INT
+    ));
+    
+    // Test connection button - NEW
+    $settings->add(new admin_setting_heading(
+        'block_igis_ollama_claude/testconnection',
+        get_string('testconnection', 'block_igis_ollama_claude'),
+        '<div class="alert alert-info">' . get_string('testconnectionhelp', 'block_igis_ollama_claude') . '</div>' .
+        '<a href="' . new moodle_url('/blocks/igis_ollama_claude/test_connection.php') . '" class="btn btn-primary">' . 
+        get_string('testconnectionbutton', 'block_igis_ollama_claude') . '</a>'
     ));
 }

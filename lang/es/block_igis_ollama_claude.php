@@ -140,3 +140,10 @@ $string['date'] = 'Fecha';
 $string['exportlogs'] = 'Exportar registros';
 $string['viewlog'] = 'Ver registro completo';
 $string['settings'] = 'Configuración';
+
+// Strings de prueba de conexión
+$string['testconnection'] = 'Probar Conexiones API';
+$string['testconnectionhelp'] = 'Haga clic en el botón de abajo para probar la conexión a las APIs de Ollama y Claude configuradas.';
+$string['testconnectionbutton'] = 'Probar Conexiones';
+$string['testconnectioninfo'] = 'Probando conexión a las APIs configuradas. Esto puede tomar unos segundos.';
+$string['backtosettings'] = 'Volver a Configuración';

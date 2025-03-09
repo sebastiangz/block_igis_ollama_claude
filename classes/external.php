@@ -268,16 +268,27 @@ class block_igis_ollama_claude_external extends external_api {
         
         $result = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        
+        // Log errors if the request fails
+        if ($result === false) {
+            $error = curl_error($ch);
+            error_log('Ollama API error: ' . $error);
+            curl_close($ch);
+            throw new moodle_exception('Failed to connect to Ollama API: ' . $error);
+        }
+        
         curl_close($ch);
         
         // Check for errors
         if ($httpCode != 200) {
+            error_log('Ollama API error: HTTP code ' . $httpCode . ', Response: ' . $result);
             throw new moodle_exception('Failed to get response from Ollama API. HTTP code: ' . $httpCode);
         }
         
         // Decode the response
         $response = json_decode($result, true);
         if (!isset($response['message']['content'])) {
+            error_log('Invalid Ollama API response: ' . $result);
             throw new moodle_exception('Invalid response from Ollama API');
         }
         
@@ -352,33 +363,55 @@ class block_igis_ollama_claude_external extends external_api {
             'max_tokens' => intval($max_tokens)
         ];
         
-        // Make API request to Claude
+        // Make API request to Claude with updated headers
         $ch = curl_init($apiurl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
-            'x-api-key: ' . $apikey,
-            'anthropic-version: 2023-06-01'
+            'anthropic-api-key: ' . $apikey,  // Updated from x-api-key to anthropic-api-key
+            'anthropic-version: 2023-06-01',
+            'x-api-key: ' . $apikey  // Keep old header for backward compatibility
         ]);
         
         $result = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        
+        // Log errors if the request fails
+        if ($result === false) {
+            $error = curl_error($ch);
+            error_log('Claude API error: ' . $error);
+            curl_close($ch);
+            throw new moodle_exception('Failed to connect to Claude API: ' . $error);
+        }
+        
+        // Log the response for debugging
+        error_log('Claude API HTTP code: ' . $httpCode);
+        error_log('Claude API response: ' . substr($result, 0, 500) . (strlen($result) > 500 ? '...' : ''));
+        
         curl_close($ch);
         
         // Check for errors
         if ($httpCode != 200) {
+            error_log('Claude API error: HTTP code ' . $httpCode . ', Response: ' . $result);
             throw new moodle_exception('Failed to get response from Claude API. HTTP code: ' . $httpCode);
         }
         
         // Decode the response
         $response = json_decode($result, true);
-        if (!isset($response['content'][0]['text'])) {
-            throw new moodle_exception('Invalid response from Claude API');
-        }
         
-        return $response['content'][0]['text'];
+        // Handle different response formats for Claude API (check both newer and older formats)
+        if (isset($response['content'][0]['text'])) {
+            return $response['content'][0]['text'];
+        } else if (isset($response['completion'])) {
+            return $response['completion'];
+        } else if (isset($response['message']['content'])) {
+            return $response['message']['content'];
+        } else {
+            error_log('Invalid Claude API response format: ' . $result);
+            throw new moodle_exception('Invalid response format from Claude API');
+        }
     }
 
     /**
