@@ -39,24 +39,25 @@
     * defaultapi The default API service to use
     * ollamaapiavailable Whether Ollama API is available
     * claudeapiavailable Whether Claude API is available
+
+    Example context (json):
+    {
+        "blocktitle": "Ollama Claude AI Chat",
+        "assistant_name": "Claude",
+        "user_name": "You",
+        "showlabels": true,
+        "instanceid": 123,
+        "contextid": 456,
+        "uniqid": "abc123",
+        "logging": true,
+        "wwwroot": "https://moodle.example.com",
+        "allowapiselection": true,
+        "defaultapi": "ollama",
+        "ollamaapiavailable": true,
+        "claudeapiavailable": true
+    }
 }}
-<div class="ollama-claude-chat-container">
-    <p>Prueba de carga del chat. Si puedes ver este mensaje, la plantilla se está cargando correctamente.</p>
-    
-    <div>
-        <p>Datos de depuración:</p>
-        <ul>
-            <li>Block ID: {{instanceid}}</li>
-            <li>Context ID: {{contextid}}</li>
-            <li>API disponible: 
-                {{#ollamaapiavailable}}Ollama {{/ollamaapiavailable}}
-                {{#claudeapiavailable}}Claude {{/claudeapiavailable}}
-                {{#openaiapiavailable}}OpenAI {{/openaiapiavailable}}
-                {{#geminiapiavailable}}Gemini{{/geminiapiavailable}}
-            </li>
-        </ul>
-    </div>
-</div>
+
 <div id="ollama-claude-chat-{{uniqid}}" class="ollama-claude-chat-container">
     <div class="ollama-claude-chat-messages" id="ollama-claude-messages-{{uniqid}}">
         <div class="ollama-claude-welcome">
@@ -65,9 +66,10 @@
                 <div class="ollama-claude-message-label">{{assistant_name}}</div>
                 {{/showlabels}}
                 <div class="ollama-claude-message-content">
-                    {{# str }} welcomemessage, block_igis_ollama_claude, { "name": "{{assistant_name}}" } {{/ str }}
+                    Hola, soy {{assistant_name}}. ¿En qué puedo ayudarte hoy?
                 </div>
             </div>
+            <div style="clear: both;"></div>
         </div>
     </div>
 
@@ -78,47 +80,40 @@
     </div>
     {{/logging}}
 
-    <div class="ollama-claude-chat-controls">
-        <button id="ollama-claude-clear-{{uniqid}}" class="btn btn-outline-secondary btn-sm ollama-claude-clear-btn">
-            <i class="fa fa-trash-alt" aria-hidden="true"></i>
-            {{# str }} clearconversation, block_igis_ollama_claude {{/ str }}
-        </button>
-        
-        <div id="ollama-claude-status-{{uniqid}}" class="ollama-claude-status" style="display: none;"></div>
-        
-        {{#allowapiselection}}
-        <div class="ollama-claude-api-selector">
-            <label for="ollama-claude-api-select-{{uniqid}}" class="sr-only">{{# str }} selectapi, block_igis_ollama_claude {{/ str }}</label>
-            <select id="ollama-claude-api-select-{{uniqid}}" class="form-control form-control-sm" {{^ollamaapiavailable}}{{^claudeapiavailable}}disabled{{/claudeapiavailable}}{{/ollamaapiavailable}}>
-                {{#ollamaapiavailable}}
-                <option value="ollama" {{#defaultapi_ollama}}selected{{/defaultapi_ollama}}>{{# str }} ollamaapi, block_igis_ollama_claude {{/ str }}</option>
-                {{/ollamaapiavailable}}
-                {{#claudeapiavailable}}
-                <option value="claude" {{#defaultapi_claude}}selected{{/defaultapi_claude}}>{{# str }} claudeapi, block_igis_ollama_claude {{/ str }}</option>
-                {{/claudeapiavailable}}
-                {{#openaiapiavailable}}
-                <option value="openai" {{#defaultapi_openai}}selected{{/defaultapi_openai}}>{{# str }} openaiapi, block_igis_ollama_claude {{/ str }}</option>
-                {{/openaiapiavailable}}
-                {{#geminiapiavailable}}
-                <option value="gemini" {{#defaultapi_gemini}}selected{{/defaultapi_gemini}}>{{# str }} geminiapi, block_igis_ollama_claude {{/ str }}</option>
-                {{/geminiapiavailable}}
-            </select>
-        </div>
-        {{/allowapiselection}}
-    </div>
-    
     <div class="ollama-claude-chat-input-container">
+        <div class="ollama-claude-chat-controls">
+            <button id="ollama-claude-clear-{{uniqid}}" class="btn btn-outline-secondary btn-sm ollama-claude-clear-btn">
+                <i class="fa fa-trash-alt" aria-hidden="true"></i>
+                Borrar conversación
+            </button>
+            
+            <div id="ollama-claude-status-{{uniqid}}" class="ollama-claude-status" style="display: none;"></div>
+            
+            {{#allowapiselection}}
+            <div class="ollama-claude-api-selector">
+                <label for="ollama-claude-api-select-{{uniqid}}" class="sr-only">Seleccionar servicio de IA</label>
+                <select id="ollama-claude-api-select-{{uniqid}}" class="form-control form-control-sm" {{^ollamaapiavailable}}{{^claudeapiavailable}}disabled{{/claudeapiavailable}}{{/ollamaapiavailable}}>
+                    {{#ollamaapiavailable}}
+                    <option value="ollama" {{#defaultapi_ollama}}selected{{/defaultapi_ollama}}>Ollama (local)</option>
+                    {{/ollamaapiavailable}}
+                    {{#claudeapiavailable}}
+                    <option value="claude" {{#defaultapi_claude}}selected{{/defaultapi_claude}}>Claude (nube)</option>
+                    {{/claudeapiavailable}}
+                </select>
+            </div>
+            {{/allowapiselection}}
+        </div>
         <div class="input-group">
-            <textarea id="ollama-claude-input-{{uniqid}}" class="form-control" rows="2" placeholder="{{# str }} typemessage, block_igis_ollama_claude {{/ str }}"></textarea>
+            <textarea id="ollama-claude-input-{{uniqid}}" class="form-control" rows="2" placeholder="Escribe tu mensaje..."></textarea>
             <div class="input-group-append">
                 <button id="ollama-claude-send-{{uniqid}}" class="btn btn-primary">
                     <span class="normal-state">
                         <i class="fa fa-paper-plane" aria-hidden="true"></i>
-                        {{# str }} sendmessage, block_igis_ollama_claude {{/ str }}
+                        Enviar
                     </span>
                     <span class="loading-state d-none">
                         <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                        {{# str }} loadingresponse, block_igis_ollama_claude {{/ str }}
+                        Pensando...
                     </span>
                 </button>
             </div>
@@ -136,16 +131,13 @@
     <input type="hidden" id="ollama-claude-defaultapi-{{uniqid}}" value="{{defaultapi}}">
     <input type="hidden" id="ollama-claude-ollamamodel-{{uniqid}}" value="{{ollamamodel}}">
     <input type="hidden" id="ollama-claude-claudemodel-{{uniqid}}" value="{{claudemodel}}">
-    <input type="hidden" id="ollama-claude-openaimodel-{{uniqid}}" value="{{openaimodel}}">
-    <input type="hidden" id="ollama-claude-geminimodel-{{uniqid}}" value="{{geminimodel}}">
 </div>
 
 <style>
     .ollama-claude-chat-container {
         display: flex;
         flex-direction: column;
-        height: 300px;
-        max-height: 50vh; /* Limitar al 50% de la altura de la ventana */
+        height: 400px;
         border: 1px solid #ddd;
         border-radius: 5px;
         overflow: hidden;
@@ -200,19 +192,17 @@
         color: #c62828;
     }
 
-    .ollama-claude-chat-controls {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+    .ollama-claude-chat-input-container {
         padding: 10px;
         border-top: 1px solid #ddd;
         background-color: #fff;
     }
 
-    .ollama-claude-chat-input-container {
-        padding: 10px;
-        border-top: 1px solid #ddd;
-        background-color: #fff;
+    .ollama-claude-chat-controls {
+        margin-bottom: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
 
     .ollama-claude-api-selector {
@@ -234,10 +224,7 @@
     }
 
     .ollama-claude-welcome {
-        display: flex;
-        align-items: flex-start;
-        justify-content: flex-start;
-        width: 100%;
+        margin-bottom: 15px;
     }
     
     .ollama-claude-typing-indicator .ollama-claude-message-content {
@@ -273,3 +260,4 @@
         background-color: #e3f2fd;
         color: #1565c0;
     }
+</style>

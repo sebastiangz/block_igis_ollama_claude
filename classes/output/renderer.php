@@ -47,56 +47,41 @@ class renderer extends plugin_renderer_base {
      */
     public function render_chat(stdClass $data) {
         global $CFG;
-        // Agregar salida de depuración
-        $debug = '<div style="padding: 10px; border: 1px solid #ddd; margin-bottom: 10px;">';
-        $debug .= 'Depuración: Intentando renderizar chat...';
-        $debug .= '</div>';
         
-        try {
-            // Preparar datos para la plantilla
-            $templatedata = new stdClass();
-            $templatedata = new stdClass();
-            $templatedata->blocktitle = $data->blocktitle;
-            $templatedata->assistant_name = $data->assistant_name;
-            $templatedata->user_name = $data->user_name;
-            $templatedata->showlabels = $data->showlabels;
-            $templatedata->instanceid = $data->instanceid;
-            $templatedata->contextid = $data->contextid;
-            $templatedata->uniqid = $data->uniqid;
-            $templatedata->logging = $data->logging;
-            $templatedata->sourceoftruth = $data->sourceoftruth;
-            $templatedata->customprompt = $data->customprompt;
-            // API Selection data
-            $templatedata->allowapiselection = !empty($data->allowapiselection) ? $data->allowapiselection : false;
-            $templatedata->defaultapi = !empty($data->defaultapi) ? $data->defaultapi : 'ollama';
-            $templatedata->defaultapi_ollama = ($templatedata->defaultapi === 'ollama');
-            $templatedata->defaultapi_claude = ($templatedata->defaultapi === 'claude');
-            $templatedata->defaultapi_openai = ($templatedata->defaultapi === 'openai');
-            $templatedata->defaultapi_gemini = ($templatedata->defaultapi === 'gemini');
-            $templatedata->ollamaapiavailable = !empty($data->ollamaapiavailable) ? $data->ollamaapiavailable : false;
-            $templatedata->claudeapiavailable = !empty($data->claudeapiavailable) ? $data->claudeapiavailable : false;
-            $templatedata->openaiapiavailable = !empty($data->openaiapiavailable) ? $data->openaiapiavailable : false;
-            $templatedata->geminiapiavailable = !empty($data->geminiapiavailable) ? $data->geminiapiavailable : false;
-            // Model information
-            $templatedata->ollamamodel = !empty($data->ollamamodel) ? $data->ollamamodel : 'claude';
-            $templatedata->claudemodel = !empty($data->claudemodel) ? $data->claudemodel : 'claude-3-haiku-20240307';
-            $templatedata->openaimodel = !empty($data->openaimodel) ? $data->openaimodel : 'gpt-3.5-turbo';
-            $templatedata->geminimodel = !empty($data->geminimodel) ? $data->geminimodel : 'gemini-1.5-pro';
-            // Add URLs for web service calls
-            $templatedata->wwwroot = $CFG->wwwroot;
-            // Add JavaScript initialization
-            $this->page->requires->js_call_amd('block_igis_ollama_claude/chat', 'init', [
-                $data->instanceid,
-                $data->uniqid,
-                $data->contextid,
-                $data->sourceoftruth,
-                $data->customprompt
-            ]);
-            // Renderizar la plantilla
-            $result = $this->render_from_template('block_igis_ollama_claude/chat', $templatedata);
-            return $debug . $result;
-        } catch (Exception $e) {
-            return $debug . 'Error al renderizar el chat: ' . $e->getMessage();
-        }
+        // Set up the template data
+        $templatedata = new stdClass();
+        $templatedata->blocktitle = $data->blocktitle;
+        $templatedata->assistant_name = $data->assistant_name;
+        $templatedata->user_name = $data->user_name;
+        $templatedata->showlabels = $data->showlabels;
+        $templatedata->instanceid = $data->instanceid;
+        $templatedata->contextid = $data->contextid;
+        $templatedata->uniqid = $data->uniqid;
+        $templatedata->logging = $data->logging;
+        $templatedata->sourceoftruth = $data->sourceoftruth;
+        $templatedata->customprompt = $data->customprompt;
+        $templatedata->wwwroot = $CFG->wwwroot;
+        
+        // API selection data
+        $templatedata->allowapiselection = isset($data->allowapiselection) ? $data->allowapiselection : false;
+        $templatedata->defaultapi = isset($data->defaultapi) ? $data->defaultapi : 'ollama';
+        $templatedata->defaultapi_ollama = isset($data->defaultapi_ollama) ? $data->defaultapi_ollama : false;
+        $templatedata->defaultapi_claude = isset($data->defaultapi_claude) ? $data->defaultapi_claude : false;
+        $templatedata->ollamaapiavailable = isset($data->ollamaapiavailable) ? $data->ollamaapiavailable : false;
+        $templatedata->claudeapiavailable = isset($data->claudeapiavailable) ? $data->claudeapiavailable : false;
+        $templatedata->ollamamodel = isset($data->ollamamodel) ? $data->ollamamodel : '';
+        $templatedata->claudemodel = isset($data->claudemodel) ? $data->claudemodel : '';
+        
+        // Add JavaScript initialization
+        $this->page->requires->js_call_amd('block_igis_ollama_claude/chat', 'init', [
+            $data->instanceid,
+            $data->uniqid,
+            $data->contextid,
+            $data->sourceoftruth,
+            $data->customprompt
+        ]);
+        
+        // Render the template
+        return $this->render_from_template('block_igis_ollama_claude/chat', $templatedata);
     }
 }
