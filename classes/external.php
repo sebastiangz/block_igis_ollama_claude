@@ -31,6 +31,38 @@ require_once($CFG->libdir . '/externallib.php');
  */
 class block_igis_ollama_claude_external extends external_api {
 
+    // En classes/external.php, mejorar el código de selección de API
+private static function get_available_api($requestedApi, $config) {
+    $availableApis = [];
+    
+    // Verificar qué APIs están disponibles
+    if (!empty(get_config('block_igis_ollama_claude', 'ollamaapiurl'))) {
+        $availableApis[] = 'ollama';
+    }
+    if (!empty(get_config('block_igis_ollama_claude', 'claudeapikey'))) {
+        $availableApis[] = 'claude';
+    }
+    if (!empty(get_config('block_igis_ollama_claude', 'openaikey'))) {
+        $availableApis[] = 'openai';
+    }
+    if (!empty(get_config('block_igis_ollama_claude', 'geminikey'))) {
+        $availableApis[] = 'gemini';
+    }
+    
+    // Si la API solicitada está disponible, utilizarla
+    if (in_array($requestedApi, $availableApis)) {
+        return $requestedApi;
+    }
+    
+    // Si la API solicitada no está disponible, utilizar la primera disponible
+    if (!empty($availableApis)) {
+        return $availableApis[0];
+    }
+    
+    // Si no hay APIs disponibles, lanzar excepción
+    throw new \moodle_exception('no_api_available', 'block_igis_ollama_claude');
+}
+
     /**
      * Returns description of get_chat_response parameters
      *

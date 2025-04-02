@@ -62,27 +62,70 @@ function($, Ajax, Notification, Str, Markdown) {
         
         // Load conversation from localStorage if available
         const loadConversation = function() {
-            const storedConversation = localStorage.getItem(`ollama-claude-conversation-${instanceId}`);
-            if (storedConversation) {
-                try {
-                    conversation = JSON.parse(storedConversation);
-                    // Display loaded conversation
+    try {
+        const storedConversation = localStorage.getItem(`ollama-claude-conversation-${instanceId}`);
+        if (storedConversation) {
+            try {
+                const parsed = JSON.parse(storedConversation);
+                
+                // Validar que la estructura es correcta
+                if (Array.isArray(parsed) && parsed.every(item => 
+                    typeof item === 'object' && 
+                    typeof item.message === 'string' && 
+                    typeof item.response === 'string')) {
+                    
+                    conversation = parsed;
+                    // Mostrar la conversación cargada
                     conversation.forEach(entry => {
                         addMessageToUI(entry.message, 'user');
                         addMessageToUI(entry.response, 'assistant');
                     });
                     scrollToBottom();
-                } catch (e) {
-                    console.error('Failed to load conversation:', e);
-                    conversation = [];
+                } else {
+                    throw new Error('Formato de conversación inválido');
                 }
+            } catch (e) {
+                console.error('Error al analizar conversación guardada:', e);
+                conversation = [];
+                // Limpiar la conversación inválida
+                localStorage.removeItem(`ollama-claude-conversation-${instanceId}`);
             }
-        };
+        }
+    } catch (e) {
+        console.error('Error al cargar conversación:', e);
+        conversation = [];
+    }
+};
         
-        // Save conversation to localStorage
-        const saveConversation = function() {
-            localStorage.setItem(`ollama-claude-conversation-${instanceId}`, JSON.stringify(conversation));
-        };
+        // Mejorar el manejo de la persistencia de conversaciones
+const saveConversation = function() {
+    try {
+        // Limitar el tamaño de la conversación si es demasiado grande
+        const conversationToSave = conversation.length > 50 ? 
+            conversation.slice(conversation.length - 50) : conversation;
+        
+        // Convertir a cadena JSON y guardar
+        const serialized = JSON.stringify(conversationToSave);
+        
+        // Comprobar el tamaño antes de guardar (localStorage tiene límites)
+        if (serialized.length < 4.5 * 1024 * 1024) { // Unos 4.5MB
+            localStorage.setItem(`ollama-claude-conversation-${instanceId}`, serialized);
+        } else {
+            console.warn('Conversación demasiado grande para localStorage, guardando solo los últimos 20 mensajes');
+            // Guardar solo los últimos 20 mensajes
+            const truncatedConversation = conversation.slice(conversation.length - 20);
+            localStorage.setItem(`ollama-claude-conversation-${instanceId}`, JSON.stringify(truncatedConversation));
+        }
+    } catch (e) {
+        console.error('Error al guardar conversación:', e);
+        // Intentar limpiar localStorage si está lleno
+        try {
+            localStorage.removeItem(`ollama-claude-conversation-${instanceId}`);
+        } catch (clearError) {
+            console.error('No se pudo limpiar localStorage:', clearError);
+        }
+    }
+};
         
         // Clear conversation
         const clearConversation = function() {
@@ -132,50 +175,123 @@ function($, Ajax, Notification, Str, Markdown) {
         };
         
         // Add message to UI
-        const addMessageToUI = function(message, role, isError = false) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `ollama-claude-message ${role}${isError ? ' error' : ''}`;
+        // Mejorar el procesamiento de Markdown en las respuestas
+const addMessageToUI = function(message, role, isError = false) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `ollama-claude-message ${role}${isError ? ' error' : ''}`;
+    
+    if (showLabels) {
+        const labelDiv = document.createElement('div');
+        labelDiv.className = 'ollama-claude-message-label';
+        labelDiv.textContent = role === 'user' ? userName : assistantName;
+        messageDiv.appendChild(labelDiv);
+    }
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'ollama-claude-message-content';
+    
+    // Procesar markdown si es un mensaje del asistente y no es un error
+    if (role === 'assistant' && !isError) {
+        // Procesar markdown
+        Markdown.render(message).then(function(html) {
+            contentDiv.innerHTML = html;
             
-            if (showLabels) {
-                const labelDiv = document.createElement('div');
-                labelDiv.className = 'ollama-claude-message-label';
-                labelDiv.textContent = role === 'user' ? userName : assistantName;
-                messageDiv.appendChild(labelDiv);
-            }
+            // Procesar elementos específicos después del renderizado de markdown
             
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'ollama-claude-message-content';
+            // 1. Establecer target="_blank" para todos los enlaces
+            contentDiv.querySelectorAll('a').forEach(link => {
+                link.setAttribute('target', '_blank');
+                link.setAttribute('rel', 'noopener noreferrer');
+            });
             
-            // Process markdown if it's an assistant message and not an error
-            if (role === 'assistant' && !isError) {
-                // Process markdown
-                Markdown.render(message).then(function(html) {
-                    contentDiv.innerHTML = html;
-                    
-                    // Set target="_blank" for all links
-                    contentDiv.querySelectorAll('a').forEach(link => {
-                        link.setAttribute('target', '_blank');
-                        link.setAttribute('rel', 'noopener noreferrer');
-                    });
-                }).catch(function() {
-                    // Fallback if markdown rendering fails
-                    contentDiv.textContent = message;
-                });
-            } else {
-                contentDiv.textContent = message;
-            }
+            // 2. Añadir estilos apropiados a las tablas
+            contentDiv.querySelectorAll('table').forEach(table => {
+                table.classList.add('table', 'table-bordered', 'table-striped', 'table-sm');
+            });
             
-            messageDiv.appendChild(contentDiv);
-            messagesContainer.appendChild(messageDiv);
+            // 3. Añadir resaltado de código a los bloques de código
+            contentDiv.querySelectorAll('pre code').forEach(block => {
+                if (window.hljs) {
+                    window.hljs.highlightBlock(block);
+                }
+            });
             
-            // Clear the floats
-            const clearDiv = document.createElement('div');
-            clearDiv.style.clear = 'both';
-            messagesContainer.appendChild(clearDiv);
+            // 4. Manejar listas específicamente
+            contentDiv.querySelectorAll('ul, ol').forEach(list => {
+                list.style.paddingLeft = '20px';
+            });
             
-            scrollToBottom();
-        };
+        }).catch(function() {
+            // Si falla el renderizado de markdown, usar texto plano
+            contentDiv.textContent = message;
+        });
+    } else {
+        contentDiv.textContent = message;
+    }
+    
+    messageDiv.appendChild(contentDiv);
+    messagesContainer.appendChild(messageDiv);
+    
+    // Limpiar los floats
+    const clearDiv = document.createElement('div');
+    clearDiv.style.clear = 'both';
+    messagesContainer.appendChild(clearDiv);
+    
+    scrollToBottom();
+};
         
+        // Mejorar el código para manejar el cambio de API
+const updateApiSelector = function() {
+    if (!apiSelector) return;
+    
+    // Obtener la API seleccionada actualmente
+    const currentApi = apiSelector.value;
+    
+    // Desactivar todas las opciones no disponibles
+    Array.from(apiSelector.options).forEach(option => {
+        const apiType = option.value;
+        const isAvailable = 
+            (apiType === 'ollama' && ollamaapiavailable) ||
+            (apiType === 'claude' && claudeapiavailable) ||
+            (apiType === 'openai' && openaiapiavailable) ||
+            (apiType === 'gemini' && geminiapiavailable);
+        
+        option.disabled = !isAvailable;
+        if (apiType === currentApi && !isAvailable) {
+            // La API actual ya no está disponible, seleccionar otra
+            selectFirstAvailableApi();
+        }
+    });
+    
+    // Mostrar información del modelo seleccionado
+    updateModelInfo(currentApi);
+};
+
+// Mostrar información del modelo seleccionado
+const updateModelInfo = function(api) {
+    let modelName = '';
+    switch (api) {
+        case 'ollama':
+            modelName = document.getElementById(`ollama-claude-ollamamodel-${uniqueId}`).value;
+            break;
+        case 'claude':
+            modelName = document.getElementById(`ollama-claude-claudemodel-${uniqueId}`).value;
+            break;
+        case 'openai':
+            modelName = document.getElementById(`ollama-claude-openaimodel-${uniqueId}`).value;
+            break;
+        case 'gemini':
+            modelName = document.getElementById(`ollama-claude-geminimodel-${uniqueId}`).value;
+            break;
+    }
+    
+    // Actualizar el UI con la información del modelo
+    const modelInfo = document.getElementById(`ollama-claude-model-info-${uniqueId}`);
+    if (modelInfo) {
+        modelInfo.textContent = `Modelo: ${modelName}`;
+    }
+};
+
         // Add typing indicator to UI
         const addTypingIndicator = function() {
             // Check if typing indicator already exists
@@ -259,44 +375,56 @@ function($, Ajax, Notification, Str, Markdown) {
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         };
         
-        // Update status indicator
-        const updateStatus = function(status, message = '') {
-            if (!statusIndicator) return;
+        // Mejorar el código para el indicador de estado
+const updateStatus = function(status, message = '') {
+    if (!statusIndicator) return;
+    
+    // Limpiar cualquier timeout existente
+    if (requestTimeout) {
+        clearTimeout(requestTimeout);
+        requestTimeout = null;
+    }
+    
+    statusIndicator.className = 'ollama-claude-status';
+    statusIndicator.classList.add(`status-${status}`);
+    
+    switch (status) {
+        case 'ready':
+            statusIndicator.textContent = 'Listo';
+            statusIndicator.style.display = 'none';
+            break;
+        case 'sending':
+            statusIndicator.textContent = 'Enviando mensaje...';
+            statusIndicator.style.display = 'block';
+            break;
+        case 'receiving':
+            statusIndicator.textContent = 'Procesando respuesta...';
+            statusIndicator.style.display = 'block';
             
-            // Clear any existing timeout
-            if (requestTimeout) {
-                clearTimeout(requestTimeout);
-                requestTimeout = null;
-            }
-            
-            statusIndicator.className = 'ollama-claude-status';
-            statusIndicator.classList.add(`status-${status}`);
-            
-            switch (status) {
-                case 'ready':
-                    statusIndicator.textContent = 'Listo';
-                    statusIndicator.style.display = 'none';
-                    break;
-                case 'sending':
-                    statusIndicator.textContent = 'Enviando mensaje...';
-                    statusIndicator.style.display = 'block';
-                    break;
-                case 'receiving':
-                    statusIndicator.textContent = 'Procesando respuesta...';
-                    statusIndicator.style.display = 'block';
-                    break;
-                case 'error':
-                    statusIndicator.textContent = message || 'Error en la solicitud';
-                    statusIndicator.style.display = 'block';
-                    // Auto-hide after 5 seconds
-                    requestTimeout = setTimeout(function() {
-                        statusIndicator.style.display = 'none';
-                    }, 5000);
-                    break;
-                default:
-                    statusIndicator.style.display = 'none';
-            }
-        };
+            // Iniciar contador de tiempo para proporcionar actualizaciones periódicas
+            let waitTime = 0;
+            requestTimeout = setInterval(() => {
+                waitTime += 5;
+                statusIndicator.textContent = `Procesando respuesta... (${waitTime}s)`;
+                
+                // Para respuestas muy largas, dar feedback adicional
+                if (waitTime > 30) {
+                    statusIndicator.textContent = `La respuesta está tomando más tiempo de lo esperado... (${waitTime}s)`;
+                }
+            }, 5000);
+            break;
+        case 'error':
+            statusIndicator.textContent = message || 'Error en la solicitud';
+            statusIndicator.style.display = 'block';
+            // Auto-ocultar después de 10 segundos
+            requestTimeout = setTimeout(() => {
+                statusIndicator.style.display = 'none';
+            }, 10000);
+            break;
+        default:
+            statusIndicator.style.display = 'none';
+    }
+};
         
         // Set loading state
         const setLoading = function(isLoading) {

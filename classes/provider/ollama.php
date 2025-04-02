@@ -140,7 +140,13 @@ class ollama extends provider_base {
         }
         
         return [
-            'message' => $response['message']['content']
-        ];
+        'message' => $responseText,
+        'metadata' => [
+            'provider' => 'claude', // o 'ollama', 'openai', 'gemini'
+            'model' => $this->model,
+            'tokens_used' => $tokensUsed, // si está disponible
+            'processing_time' => $processingTime // si está disponible
+        ]
+    ];
     }
 }

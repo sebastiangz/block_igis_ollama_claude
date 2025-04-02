@@ -170,7 +170,13 @@ class gemini extends provider_base {
         
         // Return the AI response
         return [
-            'message' => $response['candidates'][0]['content']['parts'][0]['text']
-        ];
+        'message' => $responseText,
+        'metadata' => [
+            'provider' => 'claude', // o 'ollama', 'openai', 'gemini'
+            'model' => $this->model,
+            'tokens_used' => $tokensUsed, // si está disponible
+            'processing_time' => $processingTime // si está disponible
+        ]
+    ];
     }
 }
