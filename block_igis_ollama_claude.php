@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Multi-provider AI Chat Block for Moodle
+ * Ollama Claude AI Chat Block for Moodle
  *
  * @package    block_igis_ollama_claude
  * @copyright  2025 Sebastián González Zepeda <sgonzalez@infraestructuragis.com>
@@ -25,7 +25,11 @@
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * Multi-provider AI Chat Block class
+ * Ollama Claude AI Chat Block class
+ *
+ * @package    block_igis_ollama_claude
+ * @copyright  2025 Sebastián González Zepeda <sgonzalez@infraestructuragis.com>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class block_igis_ollama_claude extends block_base {
 
@@ -55,32 +59,43 @@ class block_igis_ollama_claude extends block_base {
     }
 
     /**
-     * Check if any API is available
+     * Check if Ollama API is available
      *
      * @return bool
      */
-    private function is_any_api_available() {
-        // Check for Ollama API
-        if (!empty(get_config('block_igis_ollama_claude', 'ollamaapiurl'))) {
-            return true;
-        }
-        
-        // Check for Claude API
-        if (!empty(get_config('block_igis_ollama_claude', 'claudeapikey'))) {
-            return true;
-        }
-        
-        // Check for OpenAI API
-        if (!empty(get_config('block_igis_ollama_claude', 'openaikey'))) {
-            return true;
-        }
-        
-        // Check for Gemini API
-        if (!empty(get_config('block_igis_ollama_claude', 'geminikey'))) {
-            return true;
-        }
-        
-        return false;
+    private function is_ollama_api_available() {
+        $apiurl = get_config('block_igis_ollama_claude', 'ollamaapiurl');
+        return !empty($apiurl);
+    }
+
+    /**
+     * Check if Claude API is available
+     *
+     * @return bool
+     */
+    private function is_claude_api_available() {
+        $apikey = get_config('block_igis_ollama_claude', 'claudeapikey');
+        return !empty($apikey);
+    }
+
+    /**
+     * Check if OpenAI API is available
+     *
+     * @return bool
+     */
+    private function is_openai_api_available() {
+        $apikey = get_config('block_igis_ollama_claude', 'openaikey');
+        return !empty($apikey);
+    }
+
+    /**
+     * Check if Gemini API is available
+     *
+     * @return bool
+     */
+    private function is_gemini_api_available() {
+        $apikey = get_config('block_igis_ollama_claude', 'geminikey');
+        return !empty($apikey);
     }
 
     /**
@@ -104,7 +119,12 @@ class block_igis_ollama_claude extends block_base {
         }
 
         // Check if any API is available
-        if (!$this->is_any_api_available()) {
+        $ollamaapiavailable = $this->is_ollama_api_available();
+        $claudeapiavailable = $this->is_claude_api_available();
+        $openaiapiavailable = $this->is_openai_api_available();
+        $geminiapiavailable = $this->is_gemini_api_available();
+
+        if (!$ollamaapiavailable && !$claudeapiavailable && !$openaiapiavailable && !$geminiapiavailable) {
             $this->content = new stdClass();
             if (has_capability('moodle/site:config', context_system::instance())) {
                 $settingsurl = new moodle_url('/admin/settings.php', array('section' => 'blocksettingigis_ollama_claude'));
@@ -123,12 +143,6 @@ class block_igis_ollama_claude extends block_base {
 
         // Get default API service
         $defaultapi = get_config('block_igis_ollama_claude', 'defaultapi');
-        
-        // Get available APIs
-        $ollamaapiavailable = !empty(get_config('block_igis_ollama_claude', 'ollamaapiurl'));
-        $claudeapiavailable = !empty(get_config('block_igis_ollama_claude', 'claudeapikey'));
-        $openaiapiavailable = !empty(get_config('block_igis_ollama_claude', 'openaikey'));
-        $geminiapiavailable = !empty(get_config('block_igis_ollama_claude', 'geminikey'));
         
         // If default API is not available, use the first available one
         if ($defaultapi === 'ollama' && !$ollamaapiavailable) {

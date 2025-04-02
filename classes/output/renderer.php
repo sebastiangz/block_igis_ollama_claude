@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Renderer for the Multi-provider AI Chat Block
+ * Renderer for the Ollama Claude AI Chat Block
  *
  * @package    block_igis_ollama_claude
  * @copyright  2025 Sebastián González Zepeda <sgonzalez@infraestructuragis.com>
@@ -31,7 +31,11 @@ use renderable;
 use stdClass;
 
 /**
- * Renderer class for Multi-provider AI Chat Block
+ * Renderer class for Ollama Claude AI Chat Block
+ *
+ * @package    block_igis_ollama_claude
+ * @copyright  2025 Sebastián González Zepeda <sgonzalez@infraestructuragis.com>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class renderer extends plugin_renderer_base {
 
@@ -43,6 +47,9 @@ class renderer extends plugin_renderer_base {
      */
     public function render_chat(stdClass $data) {
         global $CFG;
+        
+        // Get the web service token
+        $token = get_config('block_igis_ollama_claude', 'wstoken');
         
         // Set up the template data
         $templatedata = new stdClass();
@@ -58,36 +65,33 @@ class renderer extends plugin_renderer_base {
         $templatedata->customprompt = $data->customprompt;
         
         // API Selection data
-        $templatedata->allowapiselection = $data->allowapiselection;
-        $templatedata->defaultapi = $data->defaultapi;
-        $templatedata->defaultapi_ollama = $data->defaultapi_ollama;
-        $templatedata->defaultapi_claude = $data->defaultapi_claude;
-        $templatedata->defaultapi_openai = $data->defaultapi_openai;
-        $templatedata->defaultapi_gemini = $data->defaultapi_gemini;
-        $templatedata->ollamaapiavailable = $data->ollamaapiavailable;
-        $templatedata->claudeapiavailable = $data->claudeapiavailable;
-        $templatedata->openaiapiavailable = $data->openaiapiavailable;
-        $templatedata->geminiapiavailable = $data->geminiapiavailable;
+        $templatedata->allowapiselection = !empty($data->allowapiselection) ? $data->allowapiselection : false;
+        $templatedata->defaultapi = !empty($data->defaultapi) ? $data->defaultapi : 'ollama';
+        $templatedata->defaultapi_ollama = ($templatedata->defaultapi === 'ollama');
+        $templatedata->defaultapi_claude = ($templatedata->defaultapi === 'claude');
+        $templatedata->defaultapi_openai = ($templatedata->defaultapi === 'openai');
+        $templatedata->defaultapi_gemini = ($templatedata->defaultapi === 'gemini');
+        $templatedata->ollamaapiavailable = !empty($data->ollamaapiavailable) ? $data->ollamaapiavailable : false;
+        $templatedata->claudeapiavailable = !empty($data->claudeapiavailable) ? $data->claudeapiavailable : false;
+        $templatedata->openaiapiavailable = !empty($data->openaiapiavailable) ? $data->openaiapiavailable : false;
+        $templatedata->geminiapiavailable = !empty($data->geminiapiavailable) ? $data->geminiapiavailable : false;
         
         // Model information
-        $templatedata->ollamamodel = $data->ollamamodel;
-        $templatedata->claudemodel = $data->claudemodel;
-        $templatedata->openaimodel = $data->openaimodel;
-        $templatedata->geminimodel = $data->geminimodel;
+        $templatedata->ollamamodel = !empty($data->ollamamodel) ? $data->ollamamodel : 'claude';
+        $templatedata->claudemodel = !empty($data->claudemodel) ? $data->claudemodel : 'claude-3-haiku-20240307';
+        $templatedata->openaimodel = !empty($data->openaimodel) ? $data->openaimodel : 'gpt-3.5-turbo';
+        $templatedata->geminimodel = !empty($data->geminimodel) ? $data->geminimodel : 'gemini-1.5-pro';
         
         // Add URLs for web service calls
         $templatedata->wwwroot = $CFG->wwwroot;
         
         // Add JavaScript initialization
-        $this->page->requires->js_call_amd('block_igis_ollama_claude/lib', 'init', [
-            [
-                'blockId' => $data->instanceid,
-                'uniqueId' => $data->uniqid,
-                'contextId' => $data->contextid,
-                'sourceOfTruth' => $data->sourceoftruth,
-                'customPrompt' => $data->customprompt,
-                'defaultApi' => $data->defaultapi
-            ]
+        $this->page->requires->js_call_amd('block_igis_ollama_claude/chat', 'init', [
+            $data->instanceid,
+            $data->uniqid,
+            $data->contextid,
+            $data->sourceoftruth,
+            $data->customprompt
         ]);
         
         // Render the template

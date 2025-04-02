@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * External API for the Multi-provider AI Chat Block
+ * External API for the Ollama Claude AI Chat Block
  *
  * @package    block_igis_ollama_claude
  * @copyright  2025 Sebastián González Zepeda <sgonzalez@infraestructuragis.com>
@@ -27,7 +27,7 @@ defined('MOODLE_INTERNAL') || die;
 require_once($CFG->libdir . '/externallib.php');
 
 /**
- * External API functions for Multi-provider AI Chat
+ * External API functions for Ollama Claude AI Chat
  */
 class block_igis_ollama_claude_external extends external_api {
 
@@ -44,12 +44,12 @@ class block_igis_ollama_claude_external extends external_api {
             'contextid' => new external_value(PARAM_INT, 'Context ID'),
             'sourceoftruth' => new external_value(PARAM_RAW, 'Source of truth', VALUE_DEFAULT, ''),
             'prompt' => new external_value(PARAM_RAW, 'System prompt', VALUE_DEFAULT, ''),
-            'api' => new external_value(PARAM_TEXT, 'API service to use (ollama, claude, openai, gemini)', VALUE_DEFAULT, '')
+            'api' => new external_value(PARAM_ALPHA, 'API service to use (ollama or claude)', VALUE_DEFAULT, '')
         ]);
     }
 
     /**
-     * Get chat response from selected AI provider
+     * Get chat response from Ollama Claude
      *
      * @param string $message User message
      * @param string $conversation Conversation history in JSON format
@@ -57,7 +57,7 @@ class block_igis_ollama_claude_external extends external_api {
      * @param int $contextid Context ID
      * @param string $sourceoftruth Source of truth
      * @param string $prompt System prompt
-     * @param string $api API service to use (ollama, claude, openai, gemini)
+     * @param string $api API service to use (ollama or claude)
      * @return array Response data
      */
     public static function get_chat_response($message, $conversation, $instanceid, $contextid, $sourceoftruth, $prompt, $api) {
@@ -75,11 +75,11 @@ class block_igis_ollama_claude_external extends external_api {
         ]);
         
         // Get context
-        $context = context::instance_by_id($contextid);
+        $context = \context::instance_by_id($contextid);
         self::validate_context($context);
         
         // Check if context is course context, and if not, get the course ID
-        if ($context instanceof context_course) {
+        if ($context instanceof \context_course) {
             $courseid = $context->instanceid;
         } else {
             $courseid = $COURSE->id;
@@ -87,14 +87,15 @@ class block_igis_ollama_claude_external extends external_api {
         
         // Get block instance and config (for specific settings)
         $block = $DB->get_record('block_instances', ['id' => $instanceid], '*', MUST_EXIST);
-        $config = unserialize(base64_decode($block->configdata));
+        $configdata = $block->configdata;
+        $config = !empty($configdata) ? unserialize(base64_decode($configdata)) : new \stdClass();
         
         // Determine which API to use if not specified
         if (empty($api)) {
             $api = get_config('block_igis_ollama_claude', 'defaultapi');
             
             // Check if block has specific API preference
-            if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config) && !empty($config->defaultapi)) {
+            if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config->defaultapi)) {
                 $api = $config->defaultapi;
             }
         }
@@ -105,47 +106,45 @@ class block_igis_ollama_claude_external extends external_api {
         $openaikey = get_config('block_igis_ollama_claude', 'openaikey');
         $geminikey = get_config('block_igis_ollama_claude', 'geminikey');
         
-        // If selected API is not available, try to fallback to an available one
-        $apiAvailable = false;
-        
-        switch ($api) {
-            case 'ollama':
-                if (!empty($ollamaapiurl)) {
-                    $apiAvailable = true;
-                }
-                break;
-                
-            case 'claude':
-                if (!empty($claudeapikey)) {
-                    $apiAvailable = true;
-                }
-                break;
-                
-            case 'openai':
-                if (!empty($openaikey)) {
-                    $apiAvailable = true;
-                }
-                break;
-                
-            case 'gemini':
-                if (!empty($geminikey)) {
-                    $apiAvailable = true;
-                }
-                break;
-        }
-        
-        // If selected API is not available, find the first available one
-        if (!$apiAvailable) {
-            if (!empty($ollamaapiurl)) {
-                $api = 'ollama';
-            } else if (!empty($claudeapikey)) {
-                $api = 'claude';
+        if ($api === 'ollama' && empty($ollamaapiurl)) {
+            if (!empty($claudeapikey)) {
+                $api = 'claude'; // Fallback to Claude API
             } else if (!empty($openaikey)) {
-                $api = 'openai';
+                $api = 'openai'; // Fallback to OpenAI API
             } else if (!empty($geminikey)) {
-                $api = 'gemini';
+                $api = 'gemini'; // Fallback to Gemini API
             } else {
-                throw new moodle_exception('No API available');
+                throw new \moodle_exception('No API available');
+            }
+        } else if ($api === 'claude' && empty($claudeapikey)) {
+            if (!empty($ollamaapiurl)) {
+                $api = 'ollama'; // Fallback to Ollama API
+            } else if (!empty($openaikey)) {
+                $api = 'openai'; // Fallback to OpenAI API
+            } else if (!empty($geminikey)) {
+                $api = 'gemini'; // Fallback to Gemini API
+            } else {
+                throw new \moodle_exception('No API available');
+            }
+        } else if ($api === 'openai' && empty($openaikey)) {
+            if (!empty($ollamaapiurl)) {
+                $api = 'ollama'; // Fallback to Ollama API
+            } else if (!empty($claudeapikey)) {
+                $api = 'claude'; // Fallback to Claude API
+            } else if (!empty($geminikey)) {
+                $api = 'gemini'; // Fallback to Gemini API
+            } else {
+                throw new \moodle_exception('No API available');
+            }
+        } else if ($api === 'gemini' && empty($geminikey)) {
+            if (!empty($ollamaapiurl)) {
+                $api = 'ollama'; // Fallback to Ollama API
+            } else if (!empty($claudeapikey)) {
+                $api = 'claude'; // Fallback to Claude API
+            } else if (!empty($openaikey)) {
+                $api = 'openai'; // Fallback to OpenAI API
+            } else {
+                throw new \moodle_exception('No API available');
             }
         }
         
@@ -179,26 +178,22 @@ class block_igis_ollama_claude_external extends external_api {
             case 'ollama':
                 $aiResponse = self::get_ollama_response($message, $conversationHistory, $systemPrompt, $config);
                 break;
-                
             case 'claude':
                 $aiResponse = self::get_claude_response($message, $conversationHistory, $systemPrompt, $config);
                 break;
-                
             case 'openai':
                 $aiResponse = self::get_openai_response($message, $conversationHistory, $systemPrompt, $config);
                 break;
-                
             case 'gemini':
                 $aiResponse = self::get_gemini_response($message, $conversationHistory, $systemPrompt, $config);
                 break;
-                
             default:
-                throw new moodle_exception('Invalid API type');
+                throw new \moodle_exception('Invalid API type');
         }
         
         // Log the interaction if logging is enabled
         if (get_config('block_igis_ollama_claude', 'enablelogging')) {
-            $log = new stdClass();
+            $log = new \stdClass();
             $log->userid = $USER->id;
             $log->courseid = $courseid;
             $log->contextid = $contextid;
@@ -208,34 +203,31 @@ class block_igis_ollama_claude_external extends external_api {
             $log->sourceoftruth = $sourceoftruth;
             $log->prompt = $prompt;
             $log->api = $api;
-            $log->timecreated = time();
             
-            // Get model based on selected API
-            switch ($api) {
-                case 'ollama':
-                    $log->model = !empty($config->ollamamodel) && get_config('block_igis_ollama_claude', 'instancesettings') ? 
-                                  $config->ollamamodel : 
-                                  get_config('block_igis_ollama_claude', 'ollamamodel');
-                    break;
-                
-                case 'claude':
-                    $log->model = !empty($config->claudemodel) && get_config('block_igis_ollama_claude', 'instancesettings') ? 
-                                  $config->claudemodel : 
-                                  get_config('block_igis_ollama_claude', 'claudemodel');
-                    break;
-                
-                case 'openai':
-                    $log->model = !empty($config->openaimodel) && get_config('block_igis_ollama_claude', 'instancesettings') ? 
-                                  $config->openaimodel : 
-                                  get_config('block_igis_ollama_claude', 'openaimodel');
-                    break;
-                
-                case 'gemini':
-                    $log->model = !empty($config->geminimodel) && get_config('block_igis_ollama_claude', 'instancesettings') ? 
-                                  $config->geminimodel : 
-                                  get_config('block_igis_ollama_claude', 'geminimodel');
-                    break;
+            // Get model based on API type
+            if ($api === 'ollama') {
+                $log->model = get_config('block_igis_ollama_claude', 'ollamamodel');
+                if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config->ollamamodel)) {
+                    $log->model = $config->ollamamodel;
+                }
+            } else if ($api === 'claude') {
+                $log->model = get_config('block_igis_ollama_claude', 'claudemodel');
+                if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config->claudemodel)) {
+                    $log->model = $config->claudemodel;
+                }
+            } else if ($api === 'openai') {
+                $log->model = get_config('block_igis_ollama_claude', 'openaimodel');
+                if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config->openaimodel)) {
+                    $log->model = $config->openaimodel;
+                }
+            } else if ($api === 'gemini') {
+                $log->model = get_config('block_igis_ollama_claude', 'geminimodel');
+                if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config->geminimodel)) {
+                    $log->model = $config->geminimodel;
+                }
             }
+            
+            $log->timecreated = time();
             
             $DB->insert_record('block_igis_ollama_claude_logs', $log);
         }
@@ -262,7 +254,7 @@ class block_igis_ollama_claude_external extends external_api {
         $max_tokens = get_config('block_igis_ollama_claude', 'max_tokens');
         
         // If instance level settings are allowed and set, use those instead
-        if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config)) {
+        if (get_config('block_igis_ollama_claude', 'instancesettings')) {
             // If custom model is set for this instance
             if (!empty($config->ollamamodel)) {
                 $model = $config->ollamamodel;
@@ -333,13 +325,13 @@ class block_igis_ollama_claude_external extends external_api {
         
         // Check for errors
         if ($httpCode != 200) {
-            throw new moodle_exception('Failed to get response from Ollama API. HTTP code: ' . $httpCode);
+            throw new \moodle_exception('Failed to get response from Ollama API. HTTP code: ' . $httpCode);
         }
         
         // Decode the response
         $response = json_decode($result, true);
         if (!isset($response['message']['content'])) {
-            throw new moodle_exception('Invalid response from Ollama API');
+            throw new \moodle_exception('Invalid response from Ollama API');
         }
         
         return $response['message']['content'];
@@ -363,7 +355,7 @@ class block_igis_ollama_claude_external extends external_api {
         $max_tokens = get_config('block_igis_ollama_claude', 'max_tokens');
         
         // If instance level settings are allowed and set, use those instead
-        if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config)) {
+        if (get_config('block_igis_ollama_claude', 'instancesettings')) {
             // If custom model is set for this instance
             if (!empty($config->claudemodel)) {
                 $model = $config->claudemodel;
@@ -430,13 +422,13 @@ class block_igis_ollama_claude_external extends external_api {
         
         // Check for errors
         if ($httpCode != 200) {
-            throw new moodle_exception('Failed to get response from Claude API. HTTP code: ' . $httpCode);
+            throw new \moodle_exception('Failed to get response from Claude API. HTTP code: ' . $httpCode);
         }
         
         // Decode the response
         $response = json_decode($result, true);
         if (!isset($response['content'][0]['text'])) {
-            throw new moodle_exception('Invalid response from Claude API');
+            throw new \moodle_exception('Invalid response from Claude API');
         }
         
         return $response['content'][0]['text'];
@@ -459,7 +451,7 @@ class block_igis_ollama_claude_external extends external_api {
         $max_tokens = get_config('block_igis_ollama_claude', 'max_tokens');
         
         // If instance level settings are allowed and set, use those instead
-        if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config)) {
+        if (get_config('block_igis_ollama_claude', 'instancesettings')) {
             // If custom model is set for this instance
             if (!empty($config->openaimodel)) {
                 $model = $config->openaimodel;
@@ -530,13 +522,13 @@ class block_igis_ollama_claude_external extends external_api {
         
         // Check for errors
         if ($httpCode != 200) {
-            throw new moodle_exception('Failed to get response from OpenAI API. HTTP code: ' . $httpCode);
+            throw new \moodle_exception('Failed to get response from OpenAI API. HTTP code: ' . $httpCode);
         }
         
         // Decode the response
         $response = json_decode($result, true);
         if (!isset($response['choices'][0]['message']['content'])) {
-            throw new moodle_exception('Invalid response from OpenAI API');
+            throw new \moodle_exception('Invalid response from OpenAI API');
         }
         
         return $response['choices'][0]['message']['content'];
@@ -559,7 +551,7 @@ class block_igis_ollama_claude_external extends external_api {
         $max_tokens = get_config('block_igis_ollama_claude', 'max_tokens');
         
         // If instance level settings are allowed and set, use those instead
-        if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config)) {
+        if (get_config('block_igis_ollama_claude', 'instancesettings')) {
             // If custom model is set for this instance
             if (!empty($config->geminimodel)) {
                 $model = $config->geminimodel;
@@ -639,70 +631,13 @@ class block_igis_ollama_claude_external extends external_api {
         
         // Check for errors
         if ($httpCode != 200) {
-            throw new moodle_exception('Failed to get response from Gemini API. HTTP code: ' . $httpCode);
+            throw new \moodle_exception('Failed to get response from Gemini API. HTTP code: ' . $httpCode);
         }
         
         // Decode the response
         $response = json_decode($result, true);
         if (!isset($response['candidates'][0]['content']['parts'][0]['text'])) {
-            throw new moodle_exception('Invalid response from Gemini API');
+            throw new \moodle_exception('Invalid response from Gemini API');
         }
         
         return $response['candidates'][0]['content']['parts'][0]['text'];
-    }
-
-    /**
-     * Returns description of get_chat_response returns
-     *
-     * @return external_single_structure
-     */
-    public static function get_chat_response_returns() {
-        return new external_single_structure([
-            'response' => new external_value(PARAM_RAW, 'AI response')
-        ]);
-    }
-
-    /**
-     * Returns description of clear_conversation parameters
-     *
-     * @return external_function_parameters
-     */
-    public static function clear_conversation_parameters() {
-        return new external_function_parameters([
-            'instanceid' => new external_value(PARAM_INT, 'Block instance ID')
-        ]);
-    }
-
-    /**
-     * Clear the conversation history
-     *
-     * @param int $instanceid Block instance ID
-     * @return array Status
-     */
-    public static function clear_conversation($instanceid) {
-        global $USER;
-
-        // Parameter validation
-        $params = self::validate_parameters(self::clear_conversation_parameters(), [
-            'instanceid' => $instanceid
-        ]);
-        
-        // Simply return success since the conversation is stored client-side
-        return [
-            'status' => true,
-            'message' => 'Conversation cleared successfully'
-        ];
-    }
-
-    /**
-     * Returns description of clear_conversation returns
-     *
-     * @return external_single_structure
-     */
-    public static function clear_conversation_returns() {
-        return new external_single_structure([
-            'status' => new external_value(PARAM_BOOL, 'Operation success status'),
-            'message' => new external_value(PARAM_TEXT, 'Status message')
-        ]);
-    }
-}

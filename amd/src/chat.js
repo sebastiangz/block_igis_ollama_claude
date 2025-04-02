@@ -22,7 +22,7 @@
  */
 
 define(['jquery', 'core/ajax', 'core/notification', 'core/str', 'core/markdown'], 
-    function($, Ajax, Notification, Str, Markdown) {
+function($, Ajax, Notification, Str, Markdown) {
     
     /**
      * Initialize the chat interface
@@ -32,9 +32,8 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str', 'core/markdown']
      * @param {number} contextId Context ID
      * @param {string} sourceOfTruth Source of truth
      * @param {string} customPrompt Custom prompt
-     * @param {string} defaultApi Default API service
      */
-    var init = function(instanceId, uniqueId, contextId, sourceOfTruth, customPrompt, defaultApi) {
+    const init = function(instanceId, uniqueId, contextId, sourceOfTruth, customPrompt) {
         console.log('Chat initialization started with instance ID:', instanceId);
         
         // DOM Elements
@@ -50,6 +49,7 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str', 'core/markdown']
         const assistantName = document.getElementById(`ollama-claude-assistant-name-${uniqueId}`).value;
         const userName = document.getElementById(`ollama-claude-user-name-${uniqueId}`).value;
         const showLabels = document.getElementById(`ollama-claude-showlabels-${uniqueId}`).value === '1';
+        const defaultApi = document.getElementById(`ollama-claude-defaultapi-${uniqueId}`).value;
         
         // Conversation history
         let conversation = [];
@@ -59,8 +59,6 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str', 'core/markdown']
         let typingAnimation;
         // Dots for typing animation
         let dots = 0;
-        
-        console.log('DOM elements initialized');
         
         // Load conversation from localStorage if available
         const loadConversation = function() {
@@ -92,7 +90,27 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str', 'core/markdown']
             // Clear UI
             const welcomeMessage = messagesContainer.querySelector('.ollama-claude-welcome');
             messagesContainer.innerHTML = '';
-            messagesContainer.appendChild(welcomeMessage);
+            if (welcomeMessage) {
+                messagesContainer.appendChild(welcomeMessage);
+            } else {
+                // Add welcome message if it doesn't exist
+                const welcomeDiv = document.createElement('div');
+                welcomeDiv.className = 'ollama-claude-welcome';
+                const assistantMsg = document.createElement('div');
+                assistantMsg.className = 'ollama-claude-message assistant';
+                if (showLabels) {
+                    const labelDiv = document.createElement('div');
+                    labelDiv.className = 'ollama-claude-message-label';
+                    labelDiv.textContent = assistantName;
+                    assistantMsg.appendChild(labelDiv);
+                }
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'ollama-claude-message-content';
+                contentDiv.textContent = `Hola, soy ${assistantName}. ¿En qué puedo ayudarte hoy?`;
+                assistantMsg.appendChild(contentDiv);
+                welcomeDiv.appendChild(assistantMsg);
+                messagesContainer.appendChild(welcomeDiv);
+            }
             
             // Clear data
             conversation = [];
@@ -286,8 +304,8 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str', 'core/markdown']
             const loadingState = sendButton.querySelector('.loading-state');
             
             if (isLoading) {
-                normalState.classList.add('d-none');
-                loadingState.classList.remove('d-none');
+                if (normalState) normalState.classList.add('d-none');
+                if (loadingState) loadingState.classList.remove('d-none');
                 sendButton.disabled = true;
                 inputField.disabled = true;
                 if (apiSelector) {
@@ -304,8 +322,8 @@ define(['jquery', 'core/ajax', 'core/notification', 'core/str', 'core/markdown']
                 }, 5000);
                 
             } else {
-                normalState.classList.remove('d-none');
-                loadingState.classList.add('d-none');
+                if (normalState) normalState.classList.remove('d-none');
+                if (loadingState) loadingState.classList.add('d-none');
                 sendButton.disabled = false;
                 inputField.disabled = false;
                 if (apiSelector) {

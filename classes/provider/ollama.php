@@ -101,7 +101,7 @@ class ollama extends provider_base {
             'stream' => false
         ];
         
-        // Initialize cURL
+        // Make API request
         $ch = curl_init($this->apiurl . '/api/chat');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
@@ -110,37 +110,28 @@ class ollama extends provider_base {
             'Content-Type: application/json'
         ]);
         
-        // Enable debug if requested
-        if (!empty($CFG->debugcurl)) {
-            curl_setopt($ch, CURLOPT_VERBOSE, true);
-        }
-        
-        // Execute cURL request
         $result = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curl_error = curl_error($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
         
-        // Check for cURL errors
+        // Check for errors
         if ($result === false) {
             return [
                 'error' => true,
-                'message' => 'cURL error: ' . $curl_error
+                'message' => 'cURL error: ' . $curlError
             ];
         }
         
-        // Check HTTP response code
-        if ($http_code != 200) {
+        if ($httpCode != 200) {
             return [
                 'error' => true,
-                'message' => 'Ollama API returned HTTP code ' . $http_code
+                'message' => 'Ollama API returned HTTP code ' . $httpCode
             ];
         }
         
-        // Decode the JSON response
+        // Decode the response
         $response = json_decode($result, true);
-        
-        // Check if response is valid
         if (!isset($response['message']['content'])) {
             return [
                 'error' => true,
@@ -148,7 +139,6 @@ class ollama extends provider_base {
             ];
         }
         
-        // Return the AI response
         return [
             'message' => $response['message']['content']
         ];
