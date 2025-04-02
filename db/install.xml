@@ -30,5 +30,22 @@
         <INDEX NAME="timecreated" UNIQUE="false" FIELDS="timecreated"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="block_igis_ollama_claude_cache" COMMENT="Cache for AI responses to avoid repeated API calls">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="cache_key" TYPE="char" LENGTH="32" NOTNULL="true" SEQUENCE="false" COMMENT="MD5 hash of the message and model"/>
+        <FIELD NAME="message" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="The original user message"/>
+        <FIELD NAME="response" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="The cached AI response"/>
+        <FIELD NAME="model" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="The AI model used"/>
+        <FIELD NAME="time_created" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The time the cache entry was created"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="cache_key_model" UNIQUE="true" FIELDS="cache_key, model"/>
+        <INDEX NAME="time_created" UNIQUE="false" FIELDS="time_created"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

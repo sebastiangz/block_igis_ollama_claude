@@ -63,11 +63,25 @@ class gemini extends provider_base {
     public function create_response($context) {
         global $CFG;
         
+        // Start timing
+        $startTime = microtime(true);
+        
         // Ensure API key is set
         if (empty($this->apikey)) {
             return [
                 'error' => true,
                 'message' => 'Gemini API key is not configured'
+            ];
+        }
+        
+        // Try to get from cache first
+        $cachedResponse = $this->get_from_cache($this->message);
+        if ($cachedResponse !== null) {
+            return [
+                'message' => $cachedResponse,
+                'from_cache' => true,
+                'provider' => 'gemini',
+                'model' => $this->model
             ];
         }
         
@@ -120,63 +134,112 @@ class gemini extends provider_base {
             ]
         ];
         
-        // Initialize cURL
-        $api_url = "https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent?key={$this->apikey}";
-        $ch = curl_init($api_url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json'
-        ]);
-        
-        // Enable debug if requested
-        if (!empty($CFG->debugcurl)) {
-            curl_setopt($ch, CURLOPT_VERBOSE, true);
-        }
-        
-        // Execute cURL request
-        $result = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curl_error = curl_error($ch);
-        curl_close($ch);
-        
-        // Check for cURL errors
-        if ($result === false) {
+        try {
+            // Initialize cURL
+            $api_url = "https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent?key={$this->apikey}";
+            $ch = curl_init($api_url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json'
+            ]);
+            
+            // Enable debug if requested
+            if (!empty($CFG->debugcurl)) {
+                curl_setopt($ch, CURLOPT_VERBOSE, true);
+            }
+            
+            // Set reasonable timeout
+            curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+            
+            // Execute cURL request
+            $result = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curl_error = curl_error($ch);
+            curl_close($ch);
+            
+            // End timing
+            $endTime = microtime(true);
+            $processingTime = round(($endTime - $startTime) * 1000); // in milliseconds
+            
+            // Check for cURL errors
+            if ($result === false) {
+                return [
+                    'error' => true,
+                    'message' => 'cURL error: ' . $curl_error,
+                    'code' => 500,
+                    'provider' => 'gemini'
+                ];
+            }
+            
+            // Check HTTP response code
+            if ($http_code != 200) {
+                $error_message = $this->extract_error_message($result);
+                return [
+                    'error' => true,
+                    'message' => "Error de API Gemini: $error_message (Código: $http_code)",
+                    'code' => $http_code,
+                    'provider' => 'gemini'
+                ];
+            }
+            
+            // Decode the JSON response
+            $response = json_decode($result, true);
+            
+            // Check if response is valid
+            if (!isset($response['candidates'][0]['content']['parts'][0]['text'])) {
+                return [
+                    'error' => true,
+                    'message' => 'Invalid response from Gemini API',
+                    'provider' => 'gemini'
+                ];
+            }
+            
+            // Get the response text
+            $responseText = $response['candidates'][0]['content']['parts'][0]['text'];
+            
+            // Save to cache if enabled
+            $this->save_to_cache($this->message, $responseText);
+            
+            // Return the AI response with metadata
+            return [
+                'message' => $responseText,
+                'metadata' => [
+                    'provider' => 'gemini',
+                    'model' => $this->model,
+                    'processing_time_ms' => $processingTime,
+                    'tokens_used' => isset($response['usage']['totalTokens']) ? $response['usage']['totalTokens'] : null
+                ]
+            ];
+            
+        } catch (\Exception $e) {
             return [
                 'error' => true,
-                'message' => 'cURL error: ' . $curl_error
+                'message' => "Error inesperado: " . $e->getMessage(),
+                'code' => 500,
+                'provider' => 'gemini'
             ];
         }
+    }
+    
+    /**
+     * Extract error message from Gemini API response
+     *
+     * @param string $response_json JSON response from API
+     * @return string Error message
+     */
+    protected function extract_error_message($response_json) {
+        $response = json_decode($response_json, true);
         
-        // Check HTTP response code
-        if ($http_code != 200) {
-            return [
-                'error' => true,
-                'message' => 'Gemini API returned HTTP code ' . $http_code
-            ];
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return "Error de formato en la respuesta";
         }
         
-        // Decode the JSON response
-        $response = json_decode($result, true);
-        
-        // Check if response is valid
-        if (!isset($response['candidates'][0]['content']['parts'][0]['text'])) {
-            return [
-                'error' => true,
-                'message' => 'Invalid response from Gemini API'
-            ];
+        if (isset($response['error']['message'])) {
+            return $response['error']['message'];
         }
         
-        // Return the AI response
-        return [
-        'message' => $responseText,
-        'metadata' => [
-            'provider' => 'claude', // o 'ollama', 'openai', 'gemini'
-            'model' => $this->model,
-            'tokens_used' => $tokensUsed, // si está disponible
-            'processing_time' => $processingTime // si está disponible
-        ]
-    ];
+        return "Error desconocido en la API Gemini";
     }
 }

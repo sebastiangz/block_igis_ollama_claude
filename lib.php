@@ -29,28 +29,53 @@ defined('MOODLE_INTERNAL') || die();
  *
  * @param string $message The user message
  * @param string $response The AI response
- * @param context $context The context where the interaction occurred
+ * @param \context $context The context where the interaction occurred
  * @param string $api The API used
+ * @param int $instanceid The block instance ID
+ * @return bool Success status
  */
-function log_message($message, $response, $context, $api = 'unknown') {
+function block_igis_ollama_claude_log_message($message, $response, $context, $api = 'unknown', $instanceid = 0) {
     global $DB, $USER, $COURSE;
     
     if (!get_config('block_igis_ollama_claude', 'enablelogging')) {
-        return;
+        return false;
     }
     
-    $log = new stdClass();
-    $log->userid = $USER->id;
-    $log->courseid = $COURSE->id;
-    $log->contextid = $context->id;
-    $log->instanceid = 0; // Will be updated in the API call
-    $log->message = $message;
-    $log->response = $response;
-    $log->api = $api;
-    $log->model = ''; // Will be updated in the API call
-    $log->timecreated = time();
-    
-    $DB->insert_record('block_igis_ollama_claude_logs', $log);
+    try {
+        $log = new stdClass();
+        $log->userid = $USER->id;
+        $log->courseid = $COURSE->id;
+        $log->contextid = $context->id;
+        $log->instanceid = $instanceid;
+        $log->message = $message;
+        $log->response = $response;
+        $log->api = $api;
+        $log->model = '';
+        
+        // Get model based on API
+        switch ($api) {
+            case 'ollama':
+                $log->model = get_config('block_igis_ollama_claude', 'ollamamodel');
+                break;
+            case 'claude':
+                $log->model = get_config('block_igis_ollama_claude', 'claudemodel');
+                break;
+            case 'openai':
+                $log->model = get_config('block_igis_ollama_claude', 'openaimodel');
+                break;
+            case 'gemini':
+                $log->model = get_config('block_igis_ollama_claude', 'geminimodel');
+                break;
+        }
+        
+        $log->timecreated = time();
+        
+        $DB->insert_record('block_igis_ollama_claude_logs', $log);
+        return true;
+    } catch (Exception $e) {
+        debugging('Error logging message: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        return false;
+    }
 }
 
 /**
@@ -61,7 +86,7 @@ function log_message($message, $response, $context, $api = 'unknown') {
  * @param bool $recursive Whether to clean recursively
  * @return array The cleaned array
  */
-function clean_param_array($array, $type, $recursive = false) {
+function block_igis_ollama_claude_clean_param_array($array, $type, $recursive = false) {
     if (!is_array($array)) {
         return [];
     }
@@ -69,7 +94,7 @@ function clean_param_array($array, $type, $recursive = false) {
     $result = [];
     foreach ($array as $key => $value) {
         if ($recursive && is_array($value)) {
-            $result[$key] = clean_param_array($value, $type, true);
+            $result[$key] = block_igis_ollama_claude_clean_param_array($value, $type, true);
         } else {
             $result[$key] = clean_param($value, $type);
         }
@@ -83,7 +108,7 @@ function clean_param_array($array, $type, $recursive = false) {
  *
  * @return array Array of available providers
  */
-function get_available_providers() {
+function block_igis_ollama_claude_get_available_providers() {
     $providers = [];
     
     if (!empty(get_config('block_igis_ollama_claude', 'ollamaapiurl'))) {
@@ -111,7 +136,7 @@ function get_available_providers() {
  * @param string $provider The provider name
  * @return array List of models for the provider
  */
-function get_provider_models($provider) {
+function block_igis_ollama_claude_get_provider_models($provider) {
     switch ($provider) {
         case 'ollama':
             // For Ollama, this would ideally be fetched from the API
@@ -159,32 +184,6 @@ function get_provider_models($provider) {
 }
 
 /**
- * Create AMD module initialization for chat
- * 
- * @param int $instanceid The block instance ID
- * @param string $uniqueid A unique identifier for DOM elements
- * @param int $contextid The context ID
- * @param string $sourceoftruth Source of truth content
- * @param string $customprompt Custom prompt
- * @param string $defaultapi Default API provider
- * @return string JavaScript code for AMD module initialization
- */
-function create_amd_init($instanceid, $uniqueid, $contextid, $sourceoftruth, $customprompt, $defaultapi) {
-    $js = "require(['block_igis_ollama_claude/lib'], function(lib) {
-        lib.init({
-            'blockId': " . json_encode($instanceid) . ",
-            'uniqueId': " . json_encode($uniqueid) . ",
-            'contextId': " . json_encode($contextid) . ",
-            'sourceOfTruth': " . json_encode($sourceoftruth) . ",
-            'customPrompt': " . json_encode($customprompt) . ",
-            'defaultApi': " . json_encode($defaultapi) . "
-        });
-    });";
-    
-    return $js;
-}
-
-/**
  * Get logs for a specific user or context
  * 
  * @param int $userid User ID (0 for all users)
@@ -193,7 +192,7 @@ function create_amd_init($instanceid, $uniqueid, $contextid, $sourceoftruth, $cu
  * @param int $offset Offset to start from
  * @return array Array of log records
  */
-function get_chat_logs($userid = 0, $contextid = 0, $limit = 100, $offset = 0) {
+function block_igis_ollama_claude_get_chat_logs($userid = 0, $contextid = 0, $limit = 100, $offset = 0) {
     global $DB;
     
     $params = [];
@@ -217,4 +216,70 @@ function get_chat_logs($userid = 0, $contextid = 0, $limit = 100, $offset = 0) {
             ORDER BY l.timecreated DESC";
     
     return $DB->get_records_sql($sql, $params, $offset, $limit);
+}
+
+/**
+ * Check if cache table exists and create it if not
+ * 
+ * @return bool Success status
+ */
+function block_igis_ollama_claude_check_cache_table() {
+    global $DB, $CFG;
+    
+    // Check if table exists
+    $dbman = $DB->get_manager();
+    $table = new xmldb_table('block_igis_ollama_claude_cache');
+    
+    if (!$dbman->table_exists($table)) {
+        // Include required files
+        require_once($CFG->libdir . '/xmldb/xmldb_table.php');
+        
+        // Create cache table
+        $table = new xmldb_table('block_igis_ollama_claude_cache');
+        
+        // Adding fields to cache table
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('cache_key', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('message', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+        $table->add_field('response', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+        $table->add_field('model', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('time_created', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        
+        // Adding keys to cache table
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        
+        // Adding indexes to cache table
+        $table->add_index('cache_key_model', XMLDB_INDEX_UNIQUE, ['cache_key', 'model']);
+        $table->add_index('time_created', XMLDB_INDEX_NOTUNIQUE, ['time_created']);
+        
+        // Create the cache table
+        $dbman->create_table($table);
+        
+        // Enable caching
+        if (!get_config('block_igis_ollama_claude', 'enable_cache')) {
+            set_config('enable_cache', '1', 'block_igis_ollama_claude');
+        }
+        
+        return true;
+    }
+    
+    return false;
+}
+
+/**
+ * Clean up old cache entries
+ * 
+ * @param int $maxAge Maximum age in seconds (default: 7 days)
+ * @return int Number of removed entries
+ */
+function block_igis_ollama_claude_clean_cache($maxAge = 604800) {
+    global $DB;
+    
+    $cutoff = time() - $maxAge;
+    
+    return $DB->delete_records_select(
+        'block_igis_ollama_claude_cache',
+        'time_created < :cutoff',
+        ['cutoff' => $cutoff]
+    );
 }

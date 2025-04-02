@@ -40,7 +40,23 @@
     * ollamaapiavailable Whether Ollama API is available
     * claudeapiavailable Whether Claude API is available
 }}
-
+<div class="ollama-claude-chat-container">
+    <p>Prueba de carga del chat. Si puedes ver este mensaje, la plantilla se está cargando correctamente.</p>
+    
+    <div>
+        <p>Datos de depuración:</p>
+        <ul>
+            <li>Block ID: {{instanceid}}</li>
+            <li>Context ID: {{contextid}}</li>
+            <li>API disponible: 
+                {{#ollamaapiavailable}}Ollama {{/ollamaapiavailable}}
+                {{#claudeapiavailable}}Claude {{/claudeapiavailable}}
+                {{#openaiapiavailable}}OpenAI {{/openaiapiavailable}}
+                {{#geminiapiavailable}}Gemini{{/geminiapiavailable}}
+            </li>
+        </ul>
+    </div>
+</div>
 <div id="ollama-claude-chat-{{uniqid}}" class="ollama-claude-chat-container">
     <div class="ollama-claude-chat-messages" id="ollama-claude-messages-{{uniqid}}">
         <div class="ollama-claude-welcome">
@@ -128,7 +144,8 @@
     .ollama-claude-chat-container {
         display: flex;
         flex-direction: column;
-        height: 400px;
+        height: 300px;
+        max-height: 50vh; /* Limitar al 50% de la altura de la ventana */
         border: 1px solid #ddd;
         border-radius: 5px;
         overflow: hidden;

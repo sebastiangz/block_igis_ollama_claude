@@ -274,6 +274,8 @@ class block_igis_ollama_claude extends block_base {
 
     /**
      * HTML attributes for the block
+     *
+     * @return array HTML attributes
      */
     function html_attributes() {
         $attributes = parent::html_attributes();

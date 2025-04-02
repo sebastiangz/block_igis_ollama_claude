@@ -109,8 +109,12 @@ function xmldb_block_igis_ollama_claude_upgrade($oldversion) {
         if (!get_config('block_igis_ollama_claude', 'allowapiselection')) {
             set_config('allowapiselection', '1', 'block_igis_ollama_claude');
         }
+        if (!get_config('block_igis_ollama_claude', 'enable_cache')) {
+            set_config('enable_cache', '1', 'block_igis_ollama_claude');
+        }
 
         // Register external services
+        require_once($CFG->dirroot . '/blocks/igis_ollama_claude/classes/external.php');
         \core\task\manager::clear_static_caches();
 
         // IGIS Ollama Claude savepoint reached
@@ -118,4 +122,27 @@ function xmldb_block_igis_ollama_claude_upgrade($oldversion) {
     }
 
     return true;
-}
+}_exists($table)) {
+            $dbman->create_table($table);
+        }
+        
+        // Create cache table
+        $table = new xmldb_table('block_igis_ollama_claude_cache');
+        
+        // Adding fields to cache table
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('cache_key', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('message', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+        $table->add_field('response', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
+        $table->add_field('model', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('time_created', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        
+        // Adding keys to cache table
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        
+        // Adding indexes to cache table
+        $table->add_index('cache_key_model', XMLDB_INDEX_UNIQUE, ['cache_key', 'model']);
+        $table->add_index('time_created', XMLDB_INDEX_NOTUNIQUE, ['time_created']);
+        
+        // Create the cache table if it doesn't exist
+        if (!$dbman->table

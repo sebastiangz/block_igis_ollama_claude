@@ -63,12 +63,31 @@ class openai extends provider_base {
     public function create_response($context) {
         global $CFG;
         
+        // Start timing
+        $startTime = microtime(true);
+        
         // Ensure API key is set
         if (empty($this->apikey)) {
             return [
                 'error' => true,
                 'message' => 'OpenAI API key is not configured'
             ];
+        }
+        
+        // Try to get from cache first
+        $cachedResponse = $this->get_from_cache($this->message);
+        if ($cachedResponse !== null) {
+            return [
+                'message' => $cachedResponse,
+                'from_cache' => true,
+                'provider' => 'openai',
+                'model' => $this->model
+            ];
+        }
+        
+        // Check if we should truncate history
+        if ($this->should_truncate_history()) {
+            $this->history = $this->limit_conversation_history($this->history, 5);
         }
         
         // Build the messages array
@@ -81,9 +100,20 @@ class openai extends provider_base {
         ];
         
         // Add conversation history
-        $history = $this->format_history();
-        foreach ($history as $entry) {
-            $messages[] = $entry;
+        foreach ($this->history as $entry) {
+            if (isset($entry['message'])) {
+                $messages[] = [
+                    'role' => 'user',
+                    'content' => $entry['message']
+                ];
+                
+                if (isset($entry['response'])) {
+                    $messages[] = [
+                        'role' => 'assistant',
+                        'content' => $entry['response']
+                    ];
+                }
+            }
         }
         
         // Add current message
@@ -100,63 +130,112 @@ class openai extends provider_base {
             'max_tokens' => intval($this->max_tokens)
         ];
         
-        // Initialize cURL
-        $ch = curl_init('https://api.openai.com/v1/chat/completions');
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $this->apikey
-        ]);
-        
-        // Enable debug if requested
-        if (!empty($CFG->debugcurl)) {
-            curl_setopt($ch, CURLOPT_VERBOSE, true);
-        }
-        
-        // Execute cURL request
-        $result = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curl_error = curl_error($ch);
-        curl_close($ch);
-        
-        // Check for cURL errors
-        if ($result === false) {
+        try {
+            // Initialize cURL
+            $ch = curl_init('https://api.openai.com/v1/chat/completions');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $this->apikey
+            ]);
+            
+            // Enable debug if requested
+            if (!empty($CFG->debugcurl)) {
+                curl_setopt($ch, CURLOPT_VERBOSE, true);
+            }
+            
+            // Set reasonable timeout
+            curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+            
+            // Execute cURL request
+            $result = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curl_error = curl_error($ch);
+            curl_close($ch);
+            
+            // End timing
+            $endTime = microtime(true);
+            $processingTime = round(($endTime - $startTime) * 1000); // in milliseconds
+            
+            // Check for cURL errors
+            if ($result === false) {
+                return [
+                    'error' => true,
+                    'message' => 'cURL error: ' . $curl_error,
+                    'code' => 500,
+                    'provider' => 'openai'
+                ];
+            }
+            
+            // Check HTTP response code
+            if ($http_code != 200) {
+                $error_message = $this->extract_error_message($result);
+                return [
+                    'error' => true,
+                    'message' => "Error de API OpenAI: $error_message (Código: $http_code)",
+                    'code' => $http_code,
+                    'provider' => 'openai'
+                ];
+            }
+            
+            // Decode the JSON response
+            $response = json_decode($result, true);
+            
+            // Check if response is valid
+            if (!isset($response['choices'][0]['message']['content'])) {
+                return [
+                    'error' => true,
+                    'message' => 'Invalid response from OpenAI API',
+                    'provider' => 'openai'
+                ];
+            }
+            
+            // Get the response text
+            $responseText = $response['choices'][0]['message']['content'];
+            
+            // Save to cache if enabled
+            $this->save_to_cache($this->message, $responseText);
+            
+            // Return the AI response with metadata
+            return [
+                'message' => $responseText,
+                'metadata' => [
+                    'provider' => 'openai',
+                    'model' => $this->model,
+                    'processing_time_ms' => $processingTime,
+                    'tokens_used' => isset($response['usage']['total_tokens']) ? $response['usage']['total_tokens'] : null
+                ]
+            ];
+            
+        } catch (\Exception $e) {
             return [
                 'error' => true,
-                'message' => 'cURL error: ' . $curl_error
+                'message' => "Error inesperado: " . $e->getMessage(),
+                'code' => 500,
+                'provider' => 'openai'
             ];
         }
+    }
+    
+    /**
+     * Extract error message from OpenAI API response
+     *
+     * @param string $response_json JSON response from API
+     * @return string Error message
+     */
+    protected function extract_error_message($response_json) {
+        $response = json_decode($response_json, true);
         
-        // Check HTTP response code
-        if ($http_code != 200) {
-            return [
-                'error' => true,
-                'message' => 'OpenAI API returned HTTP code ' . $http_code
-            ];
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return "Error de formato en la respuesta";
         }
         
-        // Decode the JSON response
-        $response = json_decode($result, true);
-        
-        // Check if response is valid
-        if (!isset($response['choices'][0]['message']['content'])) {
-            return [
-                'error' => true,
-                'message' => 'Invalid response from OpenAI API'
-            ];
+        if (isset($response['error']['message'])) {
+            return $response['error']['message'];
         }
         
-        // Return the AI response
-        return [
-        'message' => $responseText,
-        'metadata' => [
-            'provider' => 'claude', // o 'ollama', 'openai', 'gemini'
-            'model' => $this->model,
-            'tokens_used' => $tokensUsed, // si está disponible
-            'processing_time' => $processingTime // si está disponible
-        ]
-    ];
+        return "Error desconocido en la API OpenAI";
     }
 }

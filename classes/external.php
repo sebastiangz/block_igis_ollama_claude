@@ -31,37 +31,43 @@ require_once($CFG->libdir . '/externallib.php');
  */
 class block_igis_ollama_claude_external extends external_api {
 
-    // En classes/external.php, mejorar el código de selección de API
-private static function get_available_api($requestedApi, $config) {
-    $availableApis = [];
-    
-    // Verificar qué APIs están disponibles
-    if (!empty(get_config('block_igis_ollama_claude', 'ollamaapiurl'))) {
-        $availableApis[] = 'ollama';
+    /**
+     * Get available API service
+     * 
+     * @param string $requestedApi The requested API
+     * @param object $config Block config
+     * @return string Available API
+     */
+    private static function get_available_api($requestedApi, $config) {
+        $availableApis = [];
+        
+        // Check which APIs are available
+        if (!empty(get_config('block_igis_ollama_claude', 'ollamaapiurl'))) {
+            $availableApis[] = 'ollama';
+        }
+        if (!empty(get_config('block_igis_ollama_claude', 'claudeapikey'))) {
+            $availableApis[] = 'claude';
+        }
+        if (!empty(get_config('block_igis_ollama_claude', 'openaikey'))) {
+            $availableApis[] = 'openai';
+        }
+        if (!empty(get_config('block_igis_ollama_claude', 'geminikey'))) {
+            $availableApis[] = 'gemini';
+        }
+        
+        // If the requested API is available, use it
+        if (in_array($requestedApi, $availableApis)) {
+            return $requestedApi;
+        }
+        
+        // If the requested API is not available, use the first available one
+        if (!empty($availableApis)) {
+            return $availableApis[0];
+        }
+        
+        // If no APIs are available, throw an exception
+        throw new \moodle_exception('no_api_available', 'block_igis_ollama_claude');
     }
-    if (!empty(get_config('block_igis_ollama_claude', 'claudeapikey'))) {
-        $availableApis[] = 'claude';
-    }
-    if (!empty(get_config('block_igis_ollama_claude', 'openaikey'))) {
-        $availableApis[] = 'openai';
-    }
-    if (!empty(get_config('block_igis_ollama_claude', 'geminikey'))) {
-        $availableApis[] = 'gemini';
-    }
-    
-    // Si la API solicitada está disponible, utilizarla
-    if (in_array($requestedApi, $availableApis)) {
-        return $requestedApi;
-    }
-    
-    // Si la API solicitada no está disponible, utilizar la primera disponible
-    if (!empty($availableApis)) {
-        return $availableApis[0];
-    }
-    
-    // Si no hay APIs disponibles, lanzar excepción
-    throw new \moodle_exception('no_api_available', 'block_igis_ollama_claude');
-}
 
     /**
      * Returns description of get_chat_response parameters
@@ -76,12 +82,12 @@ private static function get_available_api($requestedApi, $config) {
             'contextid' => new external_value(PARAM_INT, 'Context ID'),
             'sourceoftruth' => new external_value(PARAM_RAW, 'Source of truth', VALUE_DEFAULT, ''),
             'prompt' => new external_value(PARAM_RAW, 'System prompt', VALUE_DEFAULT, ''),
-            'api' => new external_value(PARAM_ALPHA, 'API service to use (ollama or claude)', VALUE_DEFAULT, '')
+            'api' => new external_value(PARAM_ALPHA, 'API service to use (ollama, claude, openai, gemini)', VALUE_DEFAULT, '')
         ]);
     }
 
     /**
-     * Get chat response from Ollama Claude
+     * Get chat response from AI provider
      *
      * @param string $message User message
      * @param string $conversation Conversation history in JSON format
@@ -89,7 +95,7 @@ private static function get_available_api($requestedApi, $config) {
      * @param int $contextid Context ID
      * @param string $sourceoftruth Source of truth
      * @param string $prompt System prompt
-     * @param string $api API service to use (ollama or claude)
+     * @param string $api API service to use
      * @return array Response data
      */
     public static function get_chat_response($message, $conversation, $instanceid, $contextid, $sourceoftruth, $prompt, $api) {
@@ -133,52 +139,7 @@ private static function get_available_api($requestedApi, $config) {
         }
         
         // Check if the selected API is available
-        $ollamaapiurl = get_config('block_igis_ollama_claude', 'ollamaapiurl');
-        $claudeapikey = get_config('block_igis_ollama_claude', 'claudeapikey');
-        $openaikey = get_config('block_igis_ollama_claude', 'openaikey');
-        $geminikey = get_config('block_igis_ollama_claude', 'geminikey');
-        
-        if ($api === 'ollama' && empty($ollamaapiurl)) {
-            if (!empty($claudeapikey)) {
-                $api = 'claude'; // Fallback to Claude API
-            } else if (!empty($openaikey)) {
-                $api = 'openai'; // Fallback to OpenAI API
-            } else if (!empty($geminikey)) {
-                $api = 'gemini'; // Fallback to Gemini API
-            } else {
-                throw new \moodle_exception('No API available');
-            }
-        } else if ($api === 'claude' && empty($claudeapikey)) {
-            if (!empty($ollamaapiurl)) {
-                $api = 'ollama'; // Fallback to Ollama API
-            } else if (!empty($openaikey)) {
-                $api = 'openai'; // Fallback to OpenAI API
-            } else if (!empty($geminikey)) {
-                $api = 'gemini'; // Fallback to Gemini API
-            } else {
-                throw new \moodle_exception('No API available');
-            }
-        } else if ($api === 'openai' && empty($openaikey)) {
-            if (!empty($ollamaapiurl)) {
-                $api = 'ollama'; // Fallback to Ollama API
-            } else if (!empty($claudeapikey)) {
-                $api = 'claude'; // Fallback to Claude API
-            } else if (!empty($geminikey)) {
-                $api = 'gemini'; // Fallback to Gemini API
-            } else {
-                throw new \moodle_exception('No API available');
-            }
-        } else if ($api === 'gemini' && empty($geminikey)) {
-            if (!empty($ollamaapiurl)) {
-                $api = 'ollama'; // Fallback to Ollama API
-            } else if (!empty($claudeapikey)) {
-                $api = 'claude'; // Fallback to Claude API
-            } else if (!empty($openaikey)) {
-                $api = 'openai'; // Fallback to OpenAI API
-            } else {
-                throw new \moodle_exception('No API available');
-            }
-        }
+        $api = self::get_available_api($api, $config);
         
         // Decode conversation history
         $conversationHistory = json_decode($conversation, true);
@@ -186,44 +147,54 @@ private static function get_available_api($requestedApi, $config) {
             $conversationHistory = [];
         }
         
-        // Build conversation messages for API
-        $messages = [];
+        // Prepare block settings for provider
+        $blockSettings = [];
         
-        // Add system prompt if provided
-        if (!empty($prompt)) {
-            $systemPrompt = $prompt;
-        } else {
-            $systemPrompt = get_config('block_igis_ollama_claude', 'completion_prompt');
-        }
-        
-        // Add source of truth if provided
+        // Add source of truth
         if (!empty($sourceoftruth)) {
-            $sotMessage = "Below is a list of questions and their answers. This information should be used as a reference for any inquiries:\n\n" . $sourceoftruth;
+            $blockSettings['sourceoftruth'] = $sourceoftruth;
+        }
+        
+        // Add system prompt
+        if (!empty($prompt)) {
+            $blockSettings['systemprompt'] = $prompt;
+        } else {
+            $blockSettings['systemprompt'] = get_config('block_igis_ollama_claude', 'completion_prompt');
+        }
+        
+        // Add model and other settings from config if available
+        if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($config)) {
+            // Add API-specific model settings
+            if ($api === 'ollama' && !empty($config->ollamamodel)) {
+                $blockSettings['ollamamodel'] = $config->ollamamodel;
+            } else if ($api === 'claude' && !empty($config->claudemodel)) {
+                $blockSettings['claudemodel'] = $config->claudemodel;
+            } else if ($api === 'openai' && !empty($config->openaimodel)) {
+                $blockSettings['openaimodel'] = $config->openaimodel;
+            } else if ($api === 'gemini' && !empty($config->geminimodel)) {
+                $blockSettings['geminimodel'] = $config->geminimodel;
+            }
             
-            // Add SoT to system prompt
-            $systemPrompt = $sotMessage . "\n\n" . $systemPrompt;
+            // Add common settings
+            if (!empty($config->temperature)) {
+                $blockSettings['temperature'] = $config->temperature;
+            }
+            
+            if (!empty($config->max_tokens)) {
+                $blockSettings['max_tokens'] = $config->max_tokens;
+            }
         }
         
-        // Route to appropriate API
-        $aiResponse = '';
-        switch ($api) {
-            case 'ollama':
-                $aiResponse = self::get_ollama_response($message, $conversationHistory, $systemPrompt, $config);
-                break;
-            case 'claude':
-                $aiResponse = self::get_claude_response($message, $conversationHistory, $systemPrompt, $config);
-                break;
-            case 'openai':
-                $aiResponse = self::get_openai_response($message, $conversationHistory, $systemPrompt, $config);
-                break;
-            case 'gemini':
-                $aiResponse = self::get_gemini_response($message, $conversationHistory, $systemPrompt, $config);
-                break;
-            default:
-                throw new \moodle_exception('Invalid API type');
+        // Initialize the appropriate provider
+        $providerClass = "\\block_igis_ollama_claude\\provider\\$api";
+        if (!class_exists($providerClass)) {
+            throw new \moodle_exception("Provider class not found: $providerClass");
         }
         
-        // Log the interaction if logging is enabled
+        $provider = new $providerClass($message, $conversationHistory, $blockSettings);
+        $response = $provider->create_response($context);
+        
+        // Log the interaction if enabled
         if (get_config('block_igis_ollama_claude', 'enablelogging')) {
             $log = new \stdClass();
             $log->userid = $USER->id;
@@ -231,7 +202,7 @@ private static function get_available_api($requestedApi, $config) {
             $log->contextid = $contextid;
             $log->instanceid = $instanceid;
             $log->message = $message;
-            $log->response = $aiResponse;
+            $log->response = $response['message'];
             $log->sourceoftruth = $sourceoftruth;
             $log->prompt = $prompt;
             $log->api = $api;
@@ -264,412 +235,84 @@ private static function get_available_api($requestedApi, $config) {
             $DB->insert_record('block_igis_ollama_claude_logs', $log);
         }
         
+        // Check if there's an error in the response
+        if (isset($response['error']) && $response['error']) {
+            // Return the error message but don't throw an exception
+            // This allows the frontend to handle the error gracefully
+            return [
+                'error' => true,
+                'message' => $response['message'],
+                'code' => isset($response['code']) ? $response['code'] : 500
+            ];
+        }
+        
         return [
-            'response' => $aiResponse
+            'response' => $response['message'],
+            'metadata' => isset($response['metadata']) ? $response['metadata'] : null
         ];
     }
-    
+
     /**
-     * Get response from Ollama API
+     * Returns description of get_chat_response returns
      *
-     * @param string $message User message
-     * @param array $conversationHistory Conversation history
-     * @param string $systemPrompt System prompt
-     * @param object $config Block instance config
-     * @return string AI response
+     * @return external_single_structure
      */
-    private static function get_ollama_response($message, $conversationHistory, $systemPrompt, $config) {
-        // Get Ollama API settings
-        $apiurl = get_config('block_igis_ollama_claude', 'ollamaapiurl');
-        $model = get_config('block_igis_ollama_claude', 'ollamamodel');
-        $temperature = get_config('block_igis_ollama_claude', 'temperature');
-        $max_tokens = get_config('block_igis_ollama_claude', 'max_tokens');
-        
-        // If instance level settings are allowed and set, use those instead
-        if (get_config('block_igis_ollama_claude', 'instancesettings')) {
-            // If custom model is set for this instance
-            if (!empty($config->ollamamodel)) {
-                $model = $config->ollamamodel;
-            }
-            
-            // If custom temperature is set for this instance
-            if (!empty($config->temperature)) {
-                $temperature = $config->temperature;
-            }
-            
-            // If custom max_tokens is set for this instance
-            if (!empty($config->max_tokens)) {
-                $max_tokens = $config->max_tokens;
-            }
-        }
-        
-        // Build the messages array
-        $messages = [];
-        
-        // Add system message
-        $messages[] = [
-            'role' => 'system',
-            'content' => $systemPrompt
-        ];
-        
-        // Add conversation history
-        foreach ($conversationHistory as $exchange) {
-            $messages[] = [
-                'role' => 'user',
-                'content' => $exchange['message']
-            ];
-            
-            if (isset($exchange['response'])) {
-                $messages[] = [
-                    'role' => 'assistant',
-                    'content' => $exchange['response']
-                ];
-            }
-        }
-        
-        // Add current message
-        $messages[] = [
-            'role' => 'user',
-            'content' => $message
-        ];
-        
-        // Prepare API request data
-        $data = [
-            'model' => $model,
-            'messages' => $messages,
-            'temperature' => floatval($temperature),
-            'max_tokens' => intval($max_tokens),
-            'stream' => false
-        ];
-        
-        // Make API request
-        $ch = curl_init($apiurl . '/api/chat');
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json'
+    public static function get_chat_response_returns() {
+        return new external_single_structure([
+            'response' => new external_value(PARAM_RAW, 'AI response', VALUE_OPTIONAL),
+            'error' => new external_value(PARAM_BOOL, 'Error flag', VALUE_OPTIONAL),
+            'message' => new external_value(PARAM_TEXT, 'Error message', VALUE_OPTIONAL),
+            'code' => new external_value(PARAM_INT, 'Error code', VALUE_OPTIONAL),
+            'metadata' => new external_single_structure([
+                'provider' => new external_value(PARAM_TEXT, 'Provider name', VALUE_OPTIONAL),
+                'model' => new external_value(PARAM_TEXT, 'Model name', VALUE_OPTIONAL),
+                'processing_time_ms' => new external_value(PARAM_INT, 'Processing time in milliseconds', VALUE_OPTIONAL),
+                'tokens_used' => new external_value(PARAM_INT, 'Tokens used', VALUE_OPTIONAL)
+            ], 'Response metadata', VALUE_OPTIONAL)
         ]);
-        
-        $result = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        // Check for errors
-        if ($httpCode != 200) {
-            throw new \moodle_exception('Failed to get response from Ollama API. HTTP code: ' . $httpCode);
-        }
-        
-        // Decode the response
-        $response = json_decode($result, true);
-        if (!isset($response['message']['content'])) {
-            throw new \moodle_exception('Invalid response from Ollama API');
-        }
-        
-        return $response['message']['content'];
     }
-    
+
     /**
-     * Get response from Claude API
+     * Returns description of clear_conversation parameters
      *
-     * @param string $message User message
-     * @param array $conversationHistory Conversation history
-     * @param string $systemPrompt System prompt
-     * @param object $config Block instance config
-     * @return string AI response
+     * @return external_function_parameters
      */
-    private static function get_claude_response($message, $conversationHistory, $systemPrompt, $config) {
-        // Get Claude API settings
-        $apikey = get_config('block_igis_ollama_claude', 'claudeapikey');
-        $apiurl = get_config('block_igis_ollama_claude', 'claudeapiurl');
-        $model = get_config('block_igis_ollama_claude', 'claudemodel');
-        $temperature = get_config('block_igis_ollama_claude', 'temperature');
-        $max_tokens = get_config('block_igis_ollama_claude', 'max_tokens');
-        
-        // If instance level settings are allowed and set, use those instead
-        if (get_config('block_igis_ollama_claude', 'instancesettings')) {
-            // If custom model is set for this instance
-            if (!empty($config->claudemodel)) {
-                $model = $config->claudemodel;
-            }
-            
-            // If custom temperature is set for this instance
-            if (!empty($config->temperature)) {
-                $temperature = $config->temperature;
-            }
-            
-            // If custom max_tokens is set for this instance
-            if (!empty($config->max_tokens)) {
-                $max_tokens = $config->max_tokens;
-            }
-        }
-        
-        // Build the messages array for Claude API
-        $messages = [];
-        
-        // Add conversation history
-        foreach ($conversationHistory as $exchange) {
-            $messages[] = [
-                'role' => 'user',
-                'content' => $exchange['message']
-            ];
-            
-            if (isset($exchange['response'])) {
-                $messages[] = [
-                    'role' => 'assistant',
-                    'content' => $exchange['response']
-                ];
-            }
-        }
-        
-        // Add current message
-        $messages[] = [
-            'role' => 'user',
-            'content' => $message
-        ];
-        
-        // Prepare API request data for Claude
-        $data = [
-            'model' => $model,
-            'messages' => $messages,
-            'system' => $systemPrompt,
-            'temperature' => floatval($temperature),
-            'max_tokens' => intval($max_tokens)
-        ];
-        
-        // Make API request to Claude
-        $ch = curl_init($apiurl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'x-api-key: ' . $apikey,
-            'anthropic-version: 2023-06-01'
+    public static function clear_conversation_parameters() {
+        return new external_function_parameters([
+            'instanceid' => new external_value(PARAM_INT, 'Block instance ID')
         ]);
-        
-        $result = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        // Check for errors
-        if ($httpCode != 200) {
-            throw new \moodle_exception('Failed to get response from Claude API. HTTP code: ' . $httpCode);
-        }
-        
-        // Decode the response
-        $response = json_decode($result, true);
-        if (!isset($response['content'][0]['text'])) {
-            throw new \moodle_exception('Invalid response from Claude API');
-        }
-        
-        return $response['content'][0]['text'];
     }
-    
+
     /**
-     * Get response from OpenAI API
+     * Clear the conversation history
      *
-     * @param string $message User message
-     * @param array $conversationHistory Conversation history
-     * @param string $systemPrompt System prompt
-     * @param object $config Block instance config
-     * @return string AI response
+     * @param int $instanceid Block instance ID
+     * @return array Status
      */
-    private static function get_openai_response($message, $conversationHistory, $systemPrompt, $config) {
-        // Get OpenAI API settings
-        $apikey = get_config('block_igis_ollama_claude', 'openaikey');
-        $model = get_config('block_igis_ollama_claude', 'openaimodel');
-        $temperature = get_config('block_igis_ollama_claude', 'temperature');
-        $max_tokens = get_config('block_igis_ollama_claude', 'max_tokens');
-        
-        // If instance level settings are allowed and set, use those instead
-        if (get_config('block_igis_ollama_claude', 'instancesettings')) {
-            // If custom model is set for this instance
-            if (!empty($config->openaimodel)) {
-                $model = $config->openaimodel;
-            }
-            
-            // If custom temperature is set for this instance
-            if (!empty($config->temperature)) {
-                $temperature = $config->temperature;
-            }
-            
-            // If custom max_tokens is set for this instance
-            if (!empty($config->max_tokens)) {
-                $max_tokens = $config->max_tokens;
-            }
-        }
-        
-        // Build the messages array
-        $messages = [];
-        
-        // Add system message
-        $messages[] = [
-            'role' => 'system',
-            'content' => $systemPrompt
-        ];
-        
-        // Add conversation history
-        foreach ($conversationHistory as $exchange) {
-            $messages[] = [
-                'role' => 'user',
-                'content' => $exchange['message']
-            ];
-            
-            if (isset($exchange['response'])) {
-                $messages[] = [
-                    'role' => 'assistant',
-                    'content' => $exchange['response']
-                ];
-            }
-        }
-        
-        // Add current message
-        $messages[] = [
-            'role' => 'user',
-            'content' => $message
-        ];
-        
-        // Prepare API request data
-        $data = [
-            'model' => $model,
-            'messages' => $messages,
-            'temperature' => floatval($temperature),
-            'max_tokens' => intval($max_tokens)
-        ];
-        
-        // Make API request
-        $ch = curl_init('https://api.openai.com/v1/chat/completions');
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $apikey
+    public static function clear_conversation($instanceid) {
+        global $USER;
+
+        // Parameter validation
+        $params = self::validate_parameters(self::clear_conversation_parameters(), [
+            'instanceid' => $instanceid
         ]);
         
-        $result = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        // Check for errors
-        if ($httpCode != 200) {
-            throw new \moodle_exception('Failed to get response from OpenAI API. HTTP code: ' . $httpCode);
-        }
-        
-        // Decode the response
-        $response = json_decode($result, true);
-        if (!isset($response['choices'][0]['message']['content'])) {
-            throw new \moodle_exception('Invalid response from OpenAI API');
-        }
-        
-        return $response['choices'][0]['message']['content'];
+        // Simply return success since the conversation is stored client-side
+        return [
+            'status' => true,
+            'message' => 'Conversation cleared successfully'
+        ];
     }
-    
+
     /**
-     * Get response from Gemini API
+     * Returns description of clear_conversation returns
      *
-     * @param string $message User message
-     * @param array $conversationHistory Conversation history
-     * @param string $systemPrompt System prompt
-     * @param object $config Block instance config
-     * @return string AI response
+     * @return external_single_structure
      */
-    private static function get_gemini_response($message, $conversationHistory, $systemPrompt, $config) {
-        // Get Gemini API settings
-        $apikey = get_config('block_igis_ollama_claude', 'geminikey');
-        $model = get_config('block_igis_ollama_claude', 'geminimodel');
-        $temperature = get_config('block_igis_ollama_claude', 'temperature');
-        $max_tokens = get_config('block_igis_ollama_claude', 'max_tokens');
-        
-        // If instance level settings are allowed and set, use those instead
-        if (get_config('block_igis_ollama_claude', 'instancesettings')) {
-            // If custom model is set for this instance
-            if (!empty($config->geminimodel)) {
-                $model = $config->geminimodel;
-            }
-            
-            // If custom temperature is set for this instance
-            if (!empty($config->temperature)) {
-                $temperature = $config->temperature;
-            }
-            
-            // If custom max_tokens is set for this instance
-            if (!empty($config->max_tokens)) {
-                $max_tokens = $config->max_tokens;
-            }
-        }
-        
-        // Format conversations for Gemini API
-        $contents = [];
-        
-        // Add system prompt as first user message if provided
-        if (!empty($systemPrompt)) {
-            $contents[] = [
-                'role' => 'user',
-                'parts' => [['text' => $systemPrompt]]
-            ];
-            $contents[] = [
-                'role' => 'model',
-                'parts' => [['text' => 'I understand and will follow these instructions.']]
-            ];
-        }
-        
-        // Add conversation history
-        foreach ($conversationHistory as $exchange) {
-            $contents[] = [
-                'role' => 'user',
-                'parts' => [['text' => $exchange['message']]]
-            ];
-            
-            if (isset($exchange['response'])) {
-                $contents[] = [
-                    'role' => 'model',
-                    'parts' => [['text' => $exchange['response']]]
-                ];
-            }
-        }
-        
-        // Add current message
-        $contents[] = [
-            'role' => 'user',
-            'parts' => [['text' => $message]]
-        ];
-        
-        // Prepare API request data
-        $data = [
-            'contents' => $contents,
-            'generationConfig' => [
-                'temperature' => floatval($temperature),
-                'maxOutputTokens' => intval($max_tokens),
-                'topP' => 0.95,
-                'topK' => 40
-            ]
-        ];
-        
-        // Make API request
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apikey}";
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json'
+    public static function clear_conversation_returns() {
+        return new external_single_structure([
+            'status' => new external_value(PARAM_BOOL, 'Operation success status'),
+            'message' => new external_value(PARAM_TEXT, 'Status message')
         ]);
-        
-        $result = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        // Check for errors
-        if ($httpCode != 200) {
-            throw new \moodle_exception('Failed to get response from Gemini API. HTTP code: ' . $httpCode);
-        }
-        
-        // Decode the response
-        $response = json_decode($result, true);
-        if (!isset($response['candidates'][0]['content']['parts'][0]['text'])) {
-            throw new \moodle_exception('Invalid response from Gemini API');
-        }
-        
-        return $response['candidates'][0]['content']['parts'][0]['text'];
+    }
+}

@@ -107,31 +107,31 @@ abstract class provider_base {
         
         $this->sourceoftruth = $sourceoftruth;
         
-        // Formatear según el tipo de proveedor
+        // Format based on provider type
         $providerType = $this->get_provider_type();
         
         switch ($providerType) {
             case 'ollama':
             case 'claude':
-                // Para Ollama y Claude, añadir al comienzo del sistema prompt
+                // For Ollama and Claude, add to the beginning of the system prompt
                 $preamble = "Below is a list of questions and their answers. This information should be used as a reference for any inquiries:\n\n";
                 $this->systemprompt = $preamble . $sourceoftruth . "\n\n" . $this->systemprompt;
                 break;
                 
             case 'openai':
-                // Para OpenAI, usar un formato diferente que funciona mejor con sus modelos
+                // For OpenAI, use a different format that works better with their models
                 $preamble = "REFERENCE INFORMATION:\n\n";
                 $this->systemprompt = $preamble . $sourceoftruth . "\n\nPlease use the above reference information to answer questions accurately when it applies. " . $this->systemprompt;
                 break;
                 
             case 'gemini':
-                // Para Gemini, utilizar un formato adaptado a sus características
+                // For Gemini, use a format adapted to its characteristics
                 $preamble = "IMPORTANT FACTS:\n\n";
                 $this->systemprompt = $preamble . $sourceoftruth . "\n\nUse these important facts to inform your responses when relevant. " . $this->systemprompt;
                 break;
         }
         
-        // Añadir una instrucción de refuerzo común a todos
+        // Add a reinforcement instruction common to all
         $reinforcement = "\n\nWhen asked about topics covered in the reference information, always prioritize that information over your general knowledge. If information from the reference directly contradicts what you know, go with the reference information.";
         $this->systemprompt .= $reinforcement;
     }
@@ -191,18 +191,18 @@ abstract class provider_base {
      * @return array Limited history
      */
     protected function limit_conversation_history($history, $maxMessages = 10) {
-        // Si el historial es más corto que el límite, devolverlo tal cual
+        // If history is shorter than the limit, return it as is
         if (count($history) <= $maxMessages) {
             return $history;
         }
         
-        // Obtener los primeros mensajes para mantener el contexto inicial
+        // Get the first messages to maintain initial context
         $firstMessages = array_slice($history, 0, 2);
         
-        // Obtener los últimos mensajes para mantener el contexto reciente
+        // Get the last messages to maintain recent context
         $lastMessages = array_slice($history, -($maxMessages - 2));
         
-        // Combinar y devolver
+        // Combine and return
         return array_merge($firstMessages, $lastMessages);
     }
 
@@ -213,10 +213,10 @@ abstract class provider_base {
      * @return int Estimated token count
      */
     protected function estimate_token_count($text) {
-        // Estimación básica: aproximadamente 4 caracteres por token para inglés
-        // y 6 caracteres por token para español/otros idiomas
+        // Basic estimation: approximately 4 characters per token for English
+        // and 6 characters per token for Spanish/other languages
         
-        // Detectar si el texto parece ser principalmente en inglés
+        // Detect if the text seems to be primarily in English
         $englishPattern = '/^[a-zA-Z0-9\s\.,;:!?\'"-]+$/';
         $isEnglish = preg_match($englishPattern, substr($text, 0, 500)) > 0;
         
@@ -230,7 +230,7 @@ abstract class provider_base {
      * @return bool True if history should be truncated
      */
     protected function should_truncate_history() {
-        // Estimar el tamaño en tokens del mensaje y la historia
+        // Estimate the token size of the message and history
         $totalTokens = $this->estimate_token_count($this->message);
         foreach ($this->history as $entry) {
             if (isset($entry['message'])) {
@@ -241,7 +241,7 @@ abstract class provider_base {
             }
         }
         
-        // Verificar contra los límites del modelo
+        // Check against model limits
         $modelLimits = [
             'claude-3-opus-20240229' => 200000,
             'claude-3-sonnet-20240229' => 180000,
@@ -250,12 +250,12 @@ abstract class provider_base {
             'gpt-3.5-turbo' => 4000,
             'gemini-pro' => 30000,
             'gemini-1.5-pro' => 100000,
-            // Valores aproximados, ajustar según la documentación oficial
+            // Approximate values, adjust according to official documentation
         ];
         
-        $modelLimit = isset($modelLimits[$this->model]) ? $modelLimits[$this->model] : 4000; // Valor predeterminado
+        $modelLimit = isset($modelLimits[$this->model]) ? $modelLimits[$this->model] : 4000; // Default value
         
-        // Si el total estimado excede el 80% del límite, recortar el historial
+        // If the estimated total exceeds 80% of the limit, trim the history
         return ($totalTokens > $modelLimit * 0.8);
     }
 
@@ -266,9 +266,9 @@ abstract class provider_base {
      * @return string Cache key
      */
     protected function get_cache_key($message) {
-        // Normalizar el mensaje (eliminar espacios, convertir a minúsculas)
+        // Normalize the message (remove spaces, convert to lowercase)
         $normalized = strtolower(trim($message));
-        // Crear una clave de caché basada en el mensaje y el modelo
+        // Create a cache key based on the message and model
         return md5($normalized . '_' . $this->model);
     }
 
@@ -281,21 +281,21 @@ abstract class provider_base {
     protected function get_from_cache($message) {
         global $CFG, $DB;
         
-        // Si el caché está desactivado, devolver null
+        // If caching is disabled, return null
         if (empty(get_config('block_igis_ollama_claude', 'enable_cache'))) {
             return null;
         }
         
         $cacheKey = $this->get_cache_key($message);
         
-        // Buscar en la tabla de caché
+        // Search in the cache table
         $record = $DB->get_record('block_igis_ollama_claude_cache', [
             'cache_key' => $cacheKey,
             'model' => $this->model
         ]);
         
-        // Verificar si la entrada de caché es válida (no expirada)
-        if ($record && time() - $record->time_created < 86400) { // 24 horas
+        // Check if the cache entry is valid (not expired)
+        if ($record && time() - $record->time_created < 86400) { // 24 hours
             return $record->response;
         }
         
@@ -311,26 +311,26 @@ abstract class provider_base {
     protected function save_to_cache($message, $response) {
         global $DB;
         
-        // Si el caché está desactivado, no hacer nada
+        // If caching is disabled, do nothing
         if (empty(get_config('block_igis_ollama_claude', 'enable_cache'))) {
             return;
         }
         
         $cacheKey = $this->get_cache_key($message);
         
-        // Verificar si ya existe una entrada para esta clave
+        // Check if an entry already exists for this key
         $existing = $DB->get_record('block_igis_ollama_claude_cache', [
             'cache_key' => $cacheKey,
             'model' => $this->model
         ]);
         
         if ($existing) {
-            // Actualizar entrada existente
+            // Update existing entry
             $existing->response = $response;
             $existing->time_created = time();
             $DB->update_record('block_igis_ollama_claude_cache', $existing);
         } else {
-            // Crear nueva entrada
+            // Create new entry
             $record = new \stdClass();
             $record->cache_key = $cacheKey;
             $record->message = $message;
@@ -354,7 +354,7 @@ abstract class provider_base {
             return "Error de formato en la respuesta";
         }
         
-        // Implementación genérica para ser sobrescrita por cada proveedor
+        // Generic implementation to be overridden by each provider
         if (isset($response['error']['message'])) {
             return $response['error']['message'];
         }
