@@ -23,11 +23,16 @@
  */
 
 require_once('../../config.php');
-require_once($CFG->libdir . '/adminlib.php');
+require_login();
 
-// Only administrators can access this page
-admin_externalpage_setup('blocksettingigis_ollama_claude');
+// Verificar que el usuario tenga permisos de administrador
+if (!is_siteadmin()) {
+    redirect(new moodle_url('/'), get_string('accessdenied', 'admin'));
+}
 
+$PAGE->set_url(new moodle_url('/blocks/igis_ollama_claude/diagnostics.php'));
+$PAGE->set_context(context_system::instance());
+$PAGE->set_pagelayout('admin');
 $PAGE->set_title('Multi-provider AI Chat Block - Diagnóstico');
 $PAGE->set_heading('Diagnóstico de APIs');
 
@@ -155,42 +160,6 @@ echo "<li><strong>Ollama no responde:</strong> Verifique que el servidor Ollama 
 echo "<li><strong>Error en las respuestas de Claude/OpenAI/Gemini:</strong> Compruebe que la clave API es válida y tiene suficientes créditos disponibles.</li>";
 echo "<li><strong>Funciones no registradas:</strong> Vaya a 'Administración del sitio' > 'Desarrollo' > 'Purgar todas las cachés' y recargue esta página.</li>";
 echo "</ul>";
-echo "</div>";
-echo "</div>";
-
-// Add a section for testing a simple API call
-echo "<h3>Probar envío de mensaje</h3>";
-echo "<div class='card mb-3'>";
-echo "<div class='card-body'>";
-echo "<p>Utilice este formulario para probar el envío de un mensaje simple a la API seleccionada:</p>";
-
-// Create a simple form to test the API
-echo "<form method='post' action='" . $CFG->wwwroot . "/blocks/igis_ollama_claude/test_api.php' class='mb-3'>";
-echo "<div class='form-group mb-2'>";
-echo "<label for='test-api'>Seleccionar API:</label>";
-echo "<select name='api' id='test-api' class='form-control'>";
-if (!empty($ollamaapiurl)) {
-    echo "<option value='ollama'>Ollama (local)</option>";
-}
-if (!empty($claudeapikey)) {
-    echo "<option value='claude'>Claude (nube)</option>";
-}
-if (!empty($openaikey)) {
-    echo "<option value='openai'>OpenAI (nube)</option>";
-}
-if (!empty($geminikey)) {
-    echo "<option value='gemini'>Gemini (nube)</option>";
-}
-echo "</select>";
-echo "</div>";
-echo "<div class='form-group mb-2'>";
-echo "<label for='test-message'>Mensaje de prueba:</label>";
-echo "<input type='text' name='message' id='test-message' class='form-control' value='Hola, ¿cómo estás?' required>";
-echo "</div>";
-echo "<button type='submit' class='btn btn-primary'>Enviar mensaje de prueba</button>";
-echo "</form>";
-
-echo "<p class='text-muted'>Nota: Esta función envía un mensaje directo a la API seleccionada, sin pasar por la interfaz del bloque de chat.</p>";
 echo "</div>";
 echo "</div>";
 

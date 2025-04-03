@@ -23,14 +23,19 @@
  */
 
 require_once('../../config.php');
-require_once($CFG->libdir . '/adminlib.php');
+require_login();
 
-// Only administrators can access this page
-admin_externalpage_setup('blocksettingigis_ollama_claude');
+// Verificar que el usuario tenga permisos de administrador
+if (!is_siteadmin()) {
+    redirect(new moodle_url('/'), get_string('accessdenied', 'admin'));
+}
 
 // Check for confirmation
 $confirm = optional_param('confirm', 0, PARAM_BOOL);
 
+$PAGE->set_url(new moodle_url('/blocks/igis_ollama_claude/purge_services.php'));
+$PAGE->set_context(context_system::instance());
+$PAGE->set_pagelayout('admin');
 $PAGE->set_title('Multi-provider AI Chat Block - Purgar servicios web');
 $PAGE->set_heading('Purgar y reinstalar servicios web');
 
@@ -72,40 +77,70 @@ if (!$confirm) {
     $DB->delete_records('external_services', ['shortname' => $service_shortname]);
     echo "<div>Eliminado servicio: $service_shortname</div>";
     
-    // 3. Purge all caches
+    // 3. Delete existing service functions mappings
+    $DB->execute("DELETE FROM {external_services_functions} WHERE functionname IN ('block_igis_ollama_claude_get_chat_response', 'block_igis_ollama_claude_clear_conversation')");
+    echo "<div>Eliminadas asignaciones de funciones</div>";
+    
+    // 4. Purge all caches
     purge_all_caches();
     echo "<div>Purgadas todas las cachés</div>";
     
-    // 4. Re-include the external.php file to register the functions again
-    require_once($CFG->dirroot . '/blocks/igis_ollama_claude/classes/external.php');
-    echo "<div>Recargado archivo external.php</div>";
-    
-    // 5. Re-include the services.php file to register the service again
+    // 5. Re-include the services.php file to register the service and functions
     require_once($CFG->dirroot . '/blocks/igis_ollama_claude/db/services.php');
     echo "<div>Recargado archivo services.php</div>";
     
-    // 6. Manually register the service
-    $service = (object)[
-        'name' => 'Multi-provider AI Chat Services',
-        'shortname' => 'igis_ollama_claude_service',
-        'enabled' => 1,
-        'restrictedusers' => 0,
-        'downloadfiles' => 0,
-        'uploadfiles' => 0
-    ];
-    $service_id = $DB->insert_record('external_services', $service);
-    echo "<div>Registrado servicio con ID: $service_id</div>";
-    
-    // 7. Manually register the functions
+    // 6. Manually register the functions if needed
+    $existing_functions = $DB->get_records_menu('external_functions', null, '', 'name, id');
     foreach ($functions as $function) {
-        $DB->execute(
-            "INSERT INTO {external_services_functions} (externalserviceid, functionname) VALUES (?, ?)",
-            [$service_id, $function]
-        );
-        echo "<div>Registrada función $function para el servicio</div>";
+        if (!isset($existing_functions[$function])) {
+            $new_function = new stdClass();
+            $new_function->name = $function;
+            $new_function->classname = 'block_igis_ollama_claude_external';
+            $new_function->methodname = str_replace('block_igis_ollama_claude_', '', $function);
+            $new_function->description = 'Function for Multi-provider AI Chat Block';
+            $DB->insert_record('external_functions', $new_function);
+            echo "<div>Registrada manualmente función: $function</div>";
+        } else {
+            echo "<div>Función ya registrada: $function</div>";
+        }
     }
     
-    // 8. Update the plugin version in the DB to force a refresh
+    // 7. Manually register the service
+    $existing_service = $DB->get_record('external_services', ['shortname' => $service_shortname]);
+    if (!$existing_service) {
+        $service = new stdClass();
+        $service->name = 'Multi-provider AI Chat Services';
+        $service->shortname = $service_shortname;
+        $service->enabled = 1;
+        $service->restrictedusers = 0;
+        $service->downloadfiles = 0;
+        $service->uploadfiles = 0;
+        $service_id = $DB->insert_record('external_services', $service);
+        echo "<div>Registrado servicio con ID: $service_id</div>";
+    } else {
+        $service_id = $existing_service->id;
+        echo "<div>Servicio ya registrado con ID: $service_id</div>";
+    }
+    
+    // 8. Manually register the functions for the service
+    foreach ($functions as $function) {
+        $exists = $DB->record_exists('external_services_functions', [
+            'externalserviceid' => $service_id,
+            'functionname' => $function
+        ]);
+        
+        if (!$exists) {
+            $DB->insert_record('external_services_functions', [
+                'externalserviceid' => $service_id,
+                'functionname' => $function
+            ]);
+            echo "<div>Registrada función $function para el servicio</div>";
+        } else {
+            echo "<div>Función $function ya registrada para el servicio</div>";
+        }
+    }
+    
+    // 9. Update the plugin version in the DB to force a refresh
     $current_version = $DB->get_field('config_plugins', 'value', ['plugin' => 'block_igis_ollama_claude', 'name' => 'version']);
     if ($current_version) {
         $DB->set_field('config_plugins', 'value', $current_version + 1, ['plugin' => 'block_igis_ollama_claude', 'name' => 'version']);
@@ -116,7 +151,7 @@ if (!$confirm) {
     echo 'Servicios web purgados y reinstalados correctamente.';
     echo '</div>';
     
-    // 9. Provide links to next steps
+    // 10. Provide links to next steps
     echo '<div class="mt-3">';
     echo '<p>Próximos pasos recomendados:</p>';
     echo '<ol>';

@@ -24,14 +24,24 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-// Add diagnostics page
-$ADMIN->add('blocks', new admin_externalpage(
+// Registrar páginas externas en la estructura de administración
+$ADMIN->add('blocks', new admin_category('igis_ollama_claude_settings', 'Multi-provider AI Chat'));
+
+$ADMIN->add('igis_ollama_claude_settings', new admin_externalpage(
     'igis_ollama_claude_diagnostics',
-    'Multi-provider AI Chat Diagnostics',
+    'Diagnósticos',
     new moodle_url('/blocks/igis_ollama_claude/diagnostics.php'),
     'moodle/site:config'
 ));
 
+$ADMIN->add('igis_ollama_claude_settings', new admin_externalpage(
+    'igis_ollama_claude_purge',
+    'Purgar servicios',
+    new moodle_url('/blocks/igis_ollama_claude/purge_services.php'),
+    'moodle/site:config'
+));
+
+// La parte principal de la configuración
 if ($ADMIN->fulltree) {
     // Header for General settings
     $settings->add(new admin_setting_heading(
