@@ -14,7 +14,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * JavaScript for the Ollama Claude AI Chat Block
+ * JavaScript for the Multi-provider AI Chat Block
  *
  * @module     block_igis_ollama_claude/chat
  * @copyright  2025 Sebastián González Zepeda <sgonzalez@infraestructuragis.com>
@@ -26,7 +26,6 @@ import Ajax from 'core/ajax';
 import Notification from 'core/notification';
 import {get_string as getString} from 'core/str';
 import * as Markdown from 'core/markdown';
-import Log from 'core/log';
 
 /**
  * Initialize the chat interface
@@ -55,8 +54,6 @@ export const init = (instanceId, uniqueId, contextId, sourceOfTruth, customPromp
  */
 const initChat = (instanceId, uniqueId, contextId, sourceOfTruth, customPrompt) => {
     try {
-        console.log('Initializing chat with ID: ' + uniqueId);
-        
         // DOM Elements
         const container = document.getElementById(`ollama-claude-chat-${uniqueId}`);
         if (!container) {
@@ -107,13 +104,18 @@ const initChat = (instanceId, uniqueId, contextId, sourceOfTruth, customPrompt) 
             try {
                 const storedConversation = localStorage.getItem(`ollama-claude-conversation-${instanceId}`);
                 if (storedConversation) {
-                    conversation = JSON.parse(storedConversation);
-                    // Display loaded conversation
-                    conversation.forEach(entry => {
-                        addMessageToUI(entry.message, 'user');
-                        addMessageToUI(entry.response, 'assistant');
-                    });
-                    scrollToBottom();
+                    try {
+                        conversation = JSON.parse(storedConversation);
+                        // Display loaded conversation
+                        conversation.forEach(entry => {
+                            addMessageToUI(entry.message, 'user');
+                            addMessageToUI(entry.response, 'assistant');
+                        });
+                        scrollToBottom();
+                    } catch (e) {
+                        console.error('Failed to parse stored conversation:', e);
+                        conversation = [];
+                    }
                 }
             } catch (e) {
                 console.error('Failed to load conversation:', e);
@@ -146,22 +148,18 @@ const initChat = (instanceId, uniqueId, contextId, sourceOfTruth, customPrompt) 
             saveConversation();
             
             // Call the web service to clear the conversation
-            try {
-                Ajax.call([{
-                    methodname: 'block_igis_ollama_claude_clear_conversation',
-                    args: {
-                        instanceid: instanceId
-                    }
-                }])[0].done(() => {
-                    // Optionally handle success
-                    updateStatus('ready');
-                }).fail(error => {
-                    console.error('Failed to clear conversation:', error);
-                    updateStatus('error', 'No se pudo borrar la conversación');
-                });
-            } catch (error) {
-                console.error('Error calling clear conversation service:', error);
-            }
+            Ajax.call([{
+                methodname: 'block_igis_ollama_claude_clear_conversation',
+                args: {
+                    instanceid: instanceId
+                }
+            }])[0].done(() => {
+                // Handle success
+                updateStatus('ready');
+            }).fail(error => {
+                console.error('Failed to clear conversation:', error);
+                updateStatus('error', 'No se pudo borrar la conversación');
+            });
         };
         
         // Add message to UI
@@ -182,24 +180,18 @@ const initChat = (instanceId, uniqueId, contextId, sourceOfTruth, customPrompt) 
             // Process markdown if it's an assistant message and not an error
             if (role === 'assistant' && !isError) {
                 // Process markdown
-                try {
-                    Markdown.render(message).then((html) => {
-                        contentDiv.innerHTML = html;
-                        
-                        // Set target="_blank" for all links
-                        contentDiv.querySelectorAll('a').forEach(link => {
-                            link.setAttribute('target', '_blank');
-                            link.setAttribute('rel', 'noopener noreferrer');
-                        });
-                    }).catch((e) => {
-                        // Fallback if markdown rendering fails
-                        console.error('Markdown rendering failed:', e);
-                        contentDiv.textContent = message;
+                Markdown.render(message).then((html) => {
+                    contentDiv.innerHTML = html;
+                    
+                    // Set target="_blank" for all links
+                    contentDiv.querySelectorAll('a').forEach(link => {
+                        link.setAttribute('target', '_blank');
+                        link.setAttribute('rel', 'noopener noreferrer');
                     });
-                } catch (e) {
-                    console.error('Error in markdown processing:', e);
+                }).catch(() => {
+                    // Fallback if markdown rendering fails
                     contentDiv.textContent = message;
-                }
+                });
             } else {
                 contentDiv.textContent = message;
             }
@@ -418,6 +410,13 @@ const initChat = (instanceId, uniqueId, contextId, sourceOfTruth, customPrompt) 
             // Prepare the selected API
             const selectedApi = getSelectedApi();
             
+            console.log('Sending message:', {
+                message: message,
+                api: selectedApi,
+                instanceId: instanceId,
+                contextId: contextId
+            });
+            
             // Make API call
             try {
                 Ajax.call([{
@@ -427,13 +426,19 @@ const initChat = (instanceId, uniqueId, contextId, sourceOfTruth, customPrompt) 
                         conversation: JSON.stringify(conversation),
                         instanceid: instanceId,
                         contextid: contextId,
-                        sourceoftruth: sourceOfTruth,
-                        prompt: customPrompt,
+                        sourceoftruth: sourceOfTruth || '',
+                        prompt: customPrompt || '',
                         api: selectedApi
                     }
-                }])[0].done(response => {
+                }])[0].then(response => {
+                    console.log('Received response:', response);
+                    
                     // Remove typing indicator before adding response
                     removeTypingIndicator();
+                    
+                    if (!response || !response.response) {
+                        throw new Error('Invalid response from server');
+                    }
                     
                     // Add response to UI
                     addMessageToUI(response.response, 'assistant');
@@ -449,29 +454,27 @@ const initChat = (instanceId, uniqueId, contextId, sourceOfTruth, customPrompt) 
                     
                     // Reset loading state
                     setLoading(false);
-                }).fail(error => {
+                }).catch(error => {
                     // Remove typing indicator
                     removeTypingIndicator();
                     
-                    // Handle error
                     console.error('API call failed:', error);
-                    getString('erroroccurred', 'block_igis_ollama_claude')
-                        .then(errorMsg => {
-                            addMessageToUI(errorMsg, 'assistant', true);
-                            updateStatus('error', 'Error al procesar la solicitud');
-                            setLoading(false);
-                        })
-                        .catch(e => {
-                            console.error('Error getting string:', e);
-                            addMessageToUI('Ha ocurrido un error al procesar tu solicitud. Por favor, inténtalo de nuevo.', 'assistant', true);
-                            updateStatus('error', 'Error al procesar la solicitud');
-                            setLoading(false);
-                        });
+                    
+                    // Handle error
+                    addMessageToUI('Ha ocurrido un error al procesar tu solicitud. Por favor, inténtalo de nuevo.', 'assistant', true);
+                    updateStatus('error', 'Error al procesar la solicitud: ' + (error.message || 'Error desconocido'));
+                    setLoading(false);
                 });
             } catch (error) {
-                console.error('Error calling chat response service:', error);
-                addMessageToUI('Ha ocurrido un error al procesar tu solicitud. Por favor, inténtalo de nuevo.', 'assistant', true);
-                updateStatus('error', 'Error al llamar al servicio');
+                // Remove typing indicator
+                removeTypingIndicator();
+                
+                // Log the error for debugging
+                console.error('Exception during API call:', error);
+                
+                // Show error to user
+                addMessageToUI('Error interno al enviar tu mensaje. Por favor, inténtalo de nuevo.', 'assistant', true);
+                updateStatus('error', 'Error al enviar la solicitud');
                 setLoading(false);
             }
         };
@@ -497,9 +500,26 @@ const initChat = (instanceId, uniqueId, contextId, sourceOfTruth, customPrompt) 
         // API selector change event
         if (apiSelector) {
             apiSelector.addEventListener('change', () => {
-                // Optionally show a message about changing API
+                // Show a message about changing API
                 const selectedApi = apiSelector.value;
-                const apiName = selectedApi === 'ollama' ? 'Ollama (local)' : 'Claude (nube)';
+                let apiName = 'IA';
+                
+                // Get readable API name
+                switch (selectedApi) {
+                    case 'ollama':
+                        apiName = 'Ollama (local)';
+                        break;
+                    case 'claude':
+                        apiName = 'Claude (nube)';
+                        break;
+                    case 'openai':
+                        apiName = 'OpenAI (nube)';
+                        break;
+                    case 'gemini':
+                        apiName = 'Gemini (nube)';
+                        break;
+                }
+                
                 updateStatus('ready', `Cambiado a ${apiName}`);
             });
         }
@@ -515,7 +535,6 @@ const initChat = (instanceId, uniqueId, contextId, sourceOfTruth, customPrompt) 
             inputField.focus();
         }
         
-        console.log('Chat initialized successfully');
     } catch (error) {
         console.error('Error initializing chat:', error);
         Notification.exception(error);

@@ -46,14 +46,14 @@ $functions = array(
 );
 
 $services = array(
-    'IGIS Multi-provider AI Chat Service' => array(
+    'Multi-provider AI Chat Services' => array(
         'functions' => array(
             'block_igis_ollama_claude_get_chat_response',
             'block_igis_ollama_claude_clear_conversation',
         ),
         'restrictedusers' => 0,
         'enabled' => 1,
-        'shortname' => 'igis_ollama_claude',
+        'shortname' => 'igis_ollama_claude_service',
         'downloadfiles' => 0,
         'uploadfiles' => 0
     ),

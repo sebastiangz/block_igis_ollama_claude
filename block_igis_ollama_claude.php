@@ -55,23 +55,32 @@ class block_igis_ollama_claude extends block_base {
     }
 
     /**
-     * Check if Ollama API is available
+     * Check if any API is available
      *
      * @return bool
      */
-    private function is_ollama_api_available() {
-        $apiurl = get_config('block_igis_ollama_claude', 'ollamaapiurl');
-        return !empty($apiurl);
-    }
-
-    /**
-     * Check if Claude API is available
-     *
-     * @return bool
-     */
-    private function is_claude_api_available() {
-        $apikey = get_config('block_igis_ollama_claude', 'claudeapikey');
-        return !empty($apikey);
+    private function is_any_api_available() {
+        // Check for Ollama API
+        if (!empty(get_config('block_igis_ollama_claude', 'ollamaapiurl'))) {
+            return true;
+        }
+        
+        // Check for Claude API
+        if (!empty(get_config('block_igis_ollama_claude', 'claudeapikey'))) {
+            return true;
+        }
+        
+        // Check for OpenAI API
+        if (!empty(get_config('block_igis_ollama_claude', 'openaikey'))) {
+            return true;
+        }
+        
+        // Check for Gemini API
+        if (!empty(get_config('block_igis_ollama_claude', 'geminikey'))) {
+            return true;
+        }
+        
+        return false;
     }
 
     /**
@@ -80,9 +89,30 @@ class block_igis_ollama_claude extends block_base {
      * @return stdClass
      */
     public function get_content() {
-        global $USER, $COURSE, $CFG;
+        global $USER, $COURSE, $OUTPUT, $CFG;
 
         if ($this->content !== null) {
+            return $this->content;
+        }
+
+        // If the user is not logged in and the config requires login for chat
+        if (!isloggedin() && get_config('block_igis_ollama_claude', 'loggedinonly')) {
+            $this->content = new stdClass();
+            $this->content->text = get_string('logintochat', 'block_igis_ollama_claude');
+            $this->content->footer = '';
+            return $this->content;
+        }
+
+        // Check if any API is available
+        if (!$this->is_any_api_available()) {
+            $this->content = new stdClass();
+            if (has_capability('moodle/site:config', context_system::instance())) {
+                $settingsurl = new moodle_url('/admin/settings.php', array('section' => 'blocksettingigis_ollama_claude'));
+                $this->content->text = get_string('noapiurlsetupadmin', 'block_igis_ollama_claude', $settingsurl->out());
+            } else {
+                $this->content->text = get_string('noapiurlsetup', 'block_igis_ollama_claude');
+            }
+            $this->content->footer = '';
             return $this->content;
         }
 
@@ -90,37 +120,51 @@ class block_igis_ollama_claude extends block_base {
         $this->content->text = '';
         $this->content->footer = '';
 
-        // If the user is not logged in and the config requires login for chat
-        if (!isloggedin() && get_config('block_igis_ollama_claude', 'loggedinonly')) {
-            $this->content->text = get_string('logintochat', 'block_igis_ollama_claude');
-            return $this->content;
-        }
-
-        // Check if any API is available
-        $ollamaapiavailable = $this->is_ollama_api_available();
-        $claudeapiavailable = $this->is_claude_api_available();
-
-        if (!$ollamaapiavailable && !$claudeapiavailable) {
-            if (has_capability('moodle/site:config', context_system::instance())) {
-                $settingsurl = new moodle_url('/admin/settings.php', array('section' => 'blocksettingigis_ollama_claude'));
-                $this->content->text = get_string('noapiurlsetupadmin', 'block_igis_ollama_claude', $settingsurl->out());
-            } else {
-                $this->content->text = get_string('noapiurlsetup', 'block_igis_ollama_claude');
-            }
-            return $this->content;
-        }
-
         // Get the renderer
         $renderer = $this->page->get_renderer('block_igis_ollama_claude');
 
         // Get default API service
         $defaultapi = get_config('block_igis_ollama_claude', 'defaultapi');
         
-        // If default API is not available, use the other one
+        // Get available APIs
+        $ollamaapiavailable = !empty(get_config('block_igis_ollama_claude', 'ollamaapiurl'));
+        $claudeapiavailable = !empty(get_config('block_igis_ollama_claude', 'claudeapikey'));
+        $openaiapiavailable = !empty(get_config('block_igis_ollama_claude', 'openaikey'));
+        $geminiapiavailable = !empty(get_config('block_igis_ollama_claude', 'geminikey'));
+        
+        // If default API is not available, use the first available one
         if ($defaultapi === 'ollama' && !$ollamaapiavailable) {
-            $defaultapi = 'claude';
+            if ($claudeapiavailable) {
+                $defaultapi = 'claude';
+            } else if ($openaiapiavailable) {
+                $defaultapi = 'openai';
+            } else if ($geminiapiavailable) {
+                $defaultapi = 'gemini';
+            }
         } else if ($defaultapi === 'claude' && !$claudeapiavailable) {
-            $defaultapi = 'ollama';
+            if ($ollamaapiavailable) {
+                $defaultapi = 'ollama';
+            } else if ($openaiapiavailable) {
+                $defaultapi = 'openai';
+            } else if ($geminiapiavailable) {
+                $defaultapi = 'gemini';
+            }
+        } else if ($defaultapi === 'openai' && !$openaiapiavailable) {
+            if ($ollamaapiavailable) {
+                $defaultapi = 'ollama';
+            } else if ($claudeapiavailable) {
+                $defaultapi = 'claude';
+            } else if ($geminiapiavailable) {
+                $defaultapi = 'gemini';
+            }
+        } else if ($defaultapi === 'gemini' && !$geminiapiavailable) {
+            if ($ollamaapiavailable) {
+                $defaultapi = 'ollama';
+            } else if ($claudeapiavailable) {
+                $defaultapi = 'claude';
+            } else if ($openaiapiavailable) {
+                $defaultapi = 'openai';
+            }
         }
         
         // Allow API selection
@@ -146,12 +190,18 @@ class block_igis_ollama_claude extends block_base {
         $data->defaultapi = $defaultapi;
         $data->defaultapi_ollama = ($defaultapi === 'ollama');
         $data->defaultapi_claude = ($defaultapi === 'claude');
+        $data->defaultapi_openai = ($defaultapi === 'openai');
+        $data->defaultapi_gemini = ($defaultapi === 'gemini');
         $data->ollamaapiavailable = $ollamaapiavailable;
         $data->claudeapiavailable = $claudeapiavailable;
+        $data->openaiapiavailable = $openaiapiavailable;
+        $data->geminiapiavailable = $geminiapiavailable;
         
         // Model information
         $data->ollamamodel = get_config('block_igis_ollama_claude', 'ollamamodel');
         $data->claudemodel = get_config('block_igis_ollama_claude', 'claudemodel');
+        $data->openaimodel = get_config('block_igis_ollama_claude', 'openaimodel');
+        $data->geminimodel = get_config('block_igis_ollama_claude', 'geminimodel');
         
         // If instance level settings are allowed and set
         if (get_config('block_igis_ollama_claude', 'instancesettings') && !empty($this->config)) {
@@ -161,10 +211,18 @@ class block_igis_ollama_claude extends block_base {
             if (!empty($this->config->claudemodel)) {
                 $data->claudemodel = $this->config->claudemodel;
             }
+            if (!empty($this->config->openaimodel)) {
+                $data->openaimodel = $this->config->openaimodel;
+            }
+            if (!empty($this->config->geminimodel)) {
+                $data->geminimodel = $this->config->geminimodel;
+            }
             if (!empty($this->config->defaultapi)) {
                 $data->defaultapi = $this->config->defaultapi;
                 $data->defaultapi_ollama = ($this->config->defaultapi === 'ollama');
                 $data->defaultapi_claude = ($this->config->defaultapi === 'claude');
+                $data->defaultapi_openai = ($this->config->defaultapi === 'openai');
+                $data->defaultapi_gemini = ($this->config->defaultapi === 'gemini');
             }
         }
         
@@ -201,12 +259,23 @@ class block_igis_ollama_claude extends block_base {
         );
     }
 
-    /**
+     /**
      * HTML attributes for the block
      */
     function html_attributes() {
+        global $PAGE;
+        
         $attributes = parent::html_attributes();
         $attributes['class'] .= ' block_igis_ollama_claude';
+        
+        // Add debugging hooks if debugging is enabled
+        if (debugging()) {
+            $PAGE->requires->js_call_amd('block_igis_ollama_claude/index', 'init');
+            
+            // Call the before_footer hook for debugging tools
+            block_igis_ollama_claude_before_footer();
+        }
+        
         return $attributes;
     }
 }

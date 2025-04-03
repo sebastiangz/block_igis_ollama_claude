@@ -283,3 +283,26 @@ function block_igis_ollama_claude_clean_cache($maxAge = 604800) {
         ['cutoff' => $cutoff]
     );
 }
+
+/**
+ * Set up JavaScript debugging tools
+ */
+function block_igis_ollama_claude_before_footer() {
+    global $PAGE;
+    
+    if (debugging()) {
+        // Add the debugging JavaScript module
+        $PAGE->requires->js_call_amd('block_igis_ollama_claude/console', 'default');
+        
+        // Make it available in the global M object
+        $js = "if (typeof M !== 'undefined') { 
+            if (!M.block_igis_ollama_claude) M.block_igis_ollama_claude = {}; 
+            require(['block_igis_ollama_claude/console'], function(console) { 
+                M.block_igis_ollama_claude.debug = console; 
+                console.log('Debugging tools loaded. Use M.block_igis_ollama_claude.debug in console'); 
+            }); 
+        }";
+        
+        $PAGE->requires->js_init_code($js);
+    }
+}

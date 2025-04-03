@@ -24,6 +24,14 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+// Add diagnostics page
+$ADMIN->add('blocks', new admin_externalpage(
+    'igis_ollama_claude_diagnostics',
+    'Multi-provider AI Chat Diagnostics',
+    new moodle_url('/blocks/igis_ollama_claude/diagnostics.php'),
+    'moodle/site:config'
+));
+
 if ($ADMIN->fulltree) {
     // Header for General settings
     $settings->add(new admin_setting_heading(
@@ -70,6 +78,14 @@ if ($ADMIN->fulltree) {
         get_string('enablelogging', 'block_igis_ollama_claude'),
         get_string('enablelogginghelp', 'block_igis_ollama_claude'),
         0
+    ));
+    
+    // Enable caching
+    $settings->add(new admin_setting_configcheckbox(
+        'block_igis_ollama_claude/enable_cache',
+        'Enable response caching',
+        'If enabled, identical queries will be cached to reduce API usage',
+        1
     ));
     
     // Header for UI settings
@@ -283,5 +299,35 @@ if ($ADMIN->fulltree) {
         get_string('maxtokenshelp', 'block_igis_ollama_claude'),
         '1024',
         PARAM_INT
+    ));
+    
+    // Add links to diagnostic tools
+    $settings->add(new admin_setting_heading(
+        'block_igis_ollama_claude/toolsheading',
+        'Herramientas de diagnóstico',
+        'Utilidades para solucionar problemas con el plugin'
+    ));
+    
+    // Create a basic helper message that links to diagnostic tools
+    $diagnostics_link = html_writer::link(
+        new moodle_url('/blocks/igis_ollama_claude/diagnostics.php'),
+        'Página de diagnóstico'
+    );
+    
+    $purge_link = html_writer::link(
+        new moodle_url('/blocks/igis_ollama_claude/purge_services.php'),
+        'Purgar y reinstalar servicios web'
+    );
+    
+    $tools_message = "Utilice estas herramientas para solucionar problemas:
+        <ul>
+            <li>{$diagnostics_link} - Verifica la conectividad con las APIs y el registro de servicios web</li>
+            <li>{$purge_link} - Elimina y vuelve a registrar los servicios web (útil cuando hay problemas de comunicación)</li>
+        </ul>";
+    
+    $settings->add(new admin_setting_heading(
+        'block_igis_ollama_claude/toolslinks',
+        'Enlaces de diagnóstico',
+        $tools_message
     ));
 }

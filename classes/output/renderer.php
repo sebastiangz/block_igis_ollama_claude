@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Renderer for the Ollama Claude AI Chat Block
+ * Renderer for the Multi-provider AI Chat Block
  *
  * @package    block_igis_ollama_claude
  * @copyright  2025 Sebastián González Zepeda <sgonzalez@infraestructuragis.com>
@@ -31,7 +31,7 @@ use renderable;
 use stdClass;
 
 /**
- * Renderer class for Ollama Claude AI Chat Block
+ * Renderer class for Multi-provider AI Chat Block
  *
  * @package    block_igis_ollama_claude
  * @copyright  2025 Sebastián González Zepeda <sgonzalez@infraestructuragis.com>
@@ -67,10 +67,20 @@ class renderer extends plugin_renderer_base {
         $templatedata->defaultapi = isset($data->defaultapi) ? $data->defaultapi : 'ollama';
         $templatedata->defaultapi_ollama = isset($data->defaultapi_ollama) ? $data->defaultapi_ollama : false;
         $templatedata->defaultapi_claude = isset($data->defaultapi_claude) ? $data->defaultapi_claude : false;
+        $templatedata->defaultapi_openai = isset($data->defaultapi_openai) ? $data->defaultapi_openai : false;
+        $templatedata->defaultapi_gemini = isset($data->defaultapi_gemini) ? $data->defaultapi_gemini : false;
+        
+        // API availability data
         $templatedata->ollamaapiavailable = isset($data->ollamaapiavailable) ? $data->ollamaapiavailable : false;
         $templatedata->claudeapiavailable = isset($data->claudeapiavailable) ? $data->claudeapiavailable : false;
+        $templatedata->openaiapiavailable = isset($data->openaiapiavailable) ? $data->openaiapiavailable : false;
+        $templatedata->geminiapiavailable = isset($data->geminiapiavailable) ? $data->geminiapiavailable : false;
+        
+        // Model data
         $templatedata->ollamamodel = isset($data->ollamamodel) ? $data->ollamamodel : '';
         $templatedata->claudemodel = isset($data->claudemodel) ? $data->claudemodel : '';
+        $templatedata->openaimodel = isset($data->openaimodel) ? $data->openaimodel : '';
+        $templatedata->geminimodel = isset($data->geminimodel) ? $data->geminimodel : '';
         
         // Add JavaScript initialization
         $this->page->requires->js_call_amd('block_igis_ollama_claude/chat', 'init', [
@@ -80,6 +90,9 @@ class renderer extends plugin_renderer_base {
             $data->sourceoftruth,
             $data->customprompt
         ]);
+        
+        // Add custom CSS
+        $this->page->requires->css('/blocks/igis_ollama_claude/styles.css');
         
         // Render the template
         return $this->render_from_template('block_igis_ollama_claude/chat', $templatedata);

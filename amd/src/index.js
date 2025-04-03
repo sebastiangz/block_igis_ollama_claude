@@ -21,8 +21,43 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import lib from './lib';
+import chat from './chat';
+import $ from 'jquery';
+import log from 'core/log';
+
+/**
+ * Initialize the chat module with diagnostic information
+ */
+const init = function() {
+    try {
+        // Log version and initialization
+        log.debug('Multi-provider AI Chat Block initializing - v1.0.1');
+        
+        // Check if jQuery is working
+        if (typeof $ === 'function') {
+            log.debug('jQuery is loaded correctly');
+        } else {
+            log.error('jQuery is not loaded correctly');
+        }
+        
+        // Check if we have access to the chat module
+        if (typeof chat === 'object' && typeof chat.init === 'function') {
+            log.debug('Chat module loaded correctly');
+        } else {
+            log.error('Chat module not loaded correctly');
+        }
+        
+        // Find all chat containers on the page
+        const chatContainers = document.querySelectorAll('[id^="ollama-claude-chat-"]');
+        log.debug(`Found ${chatContainers.length} chat containers on the page`);
+        
+        // The actual initialization will be done by the chat.js init function
+        // which is called from renderer.php
+    } catch (error) {
+        log.error('Error initializing Multi-provider AI Chat Block:', error);
+    }
+};
 
 export default {
-    init: lib.init
+    init: init
 };
