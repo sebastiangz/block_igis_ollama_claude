@@ -31,7 +31,7 @@ defined('MOODLE_INTERNAL') || die();
  * @return bool
  */
 function xmldb_block_igis_ollama_claude_upgrade($oldversion) {
-    global $DB;
+    global $DB, $CFG;
 
     $dbman = $DB->get_manager();
 
@@ -73,7 +73,7 @@ function xmldb_block_igis_ollama_claude_upgrade($oldversion) {
             set_config('ollamaapiurl', 'http://localhost:11434', 'block_igis_ollama_claude');
         }
         if (!get_config('block_igis_ollama_claude', 'ollamamodel')) {
-            set_config('ollamamodel', 'claude', 'block_igis_ollama_claude');
+            set_config('ollamamodel', 'llama3.2', 'block_igis_ollama_claude');
         }
         if (!get_config('block_igis_ollama_claude', 'claudeapiurl')) {
             set_config('claudeapiurl', 'https://api.anthropic.com/v1/messages', 'block_igis_ollama_claude');
@@ -88,7 +88,7 @@ function xmldb_block_igis_ollama_claude_upgrade($oldversion) {
             set_config('geminimodel', 'gemini-1.5-pro', 'block_igis_ollama_claude');
         }
         if (!get_config('block_igis_ollama_claude', 'assistant_name')) {
-            set_config('assistant_name', 'AI Assistant', 'block_igis_ollama_claude');
+            set_config('assistant_name', 'Asesor IGIS', 'block_igis_ollama_claude');
         }
         if (!get_config('block_igis_ollama_claude', 'user_name')) {
             set_config('user_name', 'You', 'block_igis_ollama_claude');
@@ -121,12 +121,8 @@ function xmldb_block_igis_ollama_claude_upgrade($oldversion) {
         upgrade_block_savepoint(true, 2025042100, 'igis_ollama_claude');
     }
 
-    return true;
-}_exists($table)) {
-            $dbman->create_table($table);
-        }
-        
-        // Create cache table
+    if ($oldversion < 2025050100) {
+        // Create cache table for improved performance
         $table = new xmldb_table('block_igis_ollama_claude_cache');
         
         // Adding fields to cache table
@@ -145,4 +141,30 @@ function xmldb_block_igis_ollama_claude_upgrade($oldversion) {
         $table->add_index('time_created', XMLDB_INDEX_NOTUNIQUE, ['time_created']);
         
         // Create the cache table if it doesn't exist
-        if (!$dbman->table
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+        
+        // Check if we need to add the API field to the logs table
+        $table = new xmldb_table('block_igis_ollama_claude_logs');
+        $field = new xmldb_field('api', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'unknown', 'prompt');
+        
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        
+        // Ensure all services are registered correctly
+        require_once($CFG->dirroot . '/blocks/igis_ollama_claude/lib.php');
+        block_igis_ollama_claude_check_services();
+        
+        // Update settings with new defaults if needed
+        if (!get_config('block_igis_ollama_claude', 'enable_cache')) {
+            set_config('enable_cache', '1', 'block_igis_ollama_claude');
+        }
+        
+        // IGIS Ollama Claude upgrade savepoint reached
+        upgrade_block_savepoint(true, 2025050100, 'igis_ollama_claude');
+    }
+
+    return true;
+}
