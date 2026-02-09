@@ -2,7 +2,7 @@
 
 Este bloque permite a los usuarios de Moodle obtener soporte 24/7 a través de varios proveedores de IA:
 
-- **Ollama** (local) - Para ejecutar modelos localmente como Claude, Llama, Mistral, etc.
+- **Ollama** (local) - Para ejecutar modelos localmente como DeepSeek, Llama, Mistral, etc.
 - **Claude** (nube) - Utilizando la API de Anthropic
 - **OpenAI** (nube) - Utilizando la API de OpenAI
 - **Gemini** (nube) - Utilizando la API de Google
@@ -132,5 +132,6 @@ Este plugin es software libre: se puede redistribuir y/o modificar bajo los tér
 ## Créditos
 
 Desarrollado por Sebastián González Zepeda (sgonzalez@infraestructuragis.com)
+
 
 Inspirado en el bloque [OpenAI Chat Block](https://github.com/Limekiller/moodle-block_openai_chat) desarrollado por Bryce Yoder.
